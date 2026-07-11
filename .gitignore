@@ -1,5 +1,8 @@
 Main-context.md
 .env
-
+.python-version
+venv/
 notes/
+
+
 CLAUDE.md

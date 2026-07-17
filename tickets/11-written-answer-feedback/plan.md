@@ -3,6 +3,10 @@
 **Depends on:** 09. **Reuses:** the LLM client boundary from 06. **Goal:** free-text answer input
 during review, LLM-graded against the gold answer, with the self-graded outcome driving SM-2.
 
+> Ambiguities in this plan (exact tool-JSON prompt shape, malformed-outcome handling, toggle scope,
+> exact UI flow, override interaction, timeout handling, and integration with ticket 09's grading
+> endpoint) are resolved in [decisions.md](decisions.md).
+
 ## Build
 - Review UI gains a free-text input as an alternate to flip-and-self-grade: user types an answer
   before the card back is revealed.

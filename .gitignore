@@ -1,8 +1,15 @@
 Main-context.md
 .env
-.python-version
 venv/
+.venv/
 notes/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
 
 
 CLAUDE.md

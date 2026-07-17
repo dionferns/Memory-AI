@@ -11,6 +11,8 @@ services:
       - ./src:/app/src
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/memory_ai
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-sk-ant-placeholder}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
     depends_on:
       db:
         condition: service_healthy

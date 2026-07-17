@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str
     jwt_secret: str
     environment: str = "development"
+    access_token_expire_minutes: int = 10080
 
 
 @lru_cache

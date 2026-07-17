@@ -50,6 +50,10 @@ strict = true
 mypy_path = "src"
 explicit_package_bases = true
 
+[[tool.mypy.overrides]]
+module = "testcontainers.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 addopts = "--cov --cov-fail-under=80"
 testpaths = ["tests"]

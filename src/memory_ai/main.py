@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from memory_ai.auth import create_access_token, verify_password
+from memory_ai.auth import create_access_token, current_user, verify_password
 from memory_ai.config import get_settings
 from memory_ai.database import get_db
 from memory_ai.models import User
@@ -19,6 +19,17 @@ templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/me")
+def me(user: User = Depends(current_user)) -> dict[str, str]:  # noqa: B008
+    """Trivial protected demo route proving out the ``current_user`` dependency.
+
+    Later tickets (04+) import and depend on the same ``current_user``
+    dependency for their real protected routes; this route exists purely to
+    exercise it end-to-end.
+    """
+    return {"email": user.email}
 
 
 @app.get("/login")

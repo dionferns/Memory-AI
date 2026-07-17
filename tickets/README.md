@@ -1,0 +1,27 @@
+# Tickets
+
+Component tickets for Memory-AI v1, numbered by build order. Each folder holds a `plan.md`
+describing what to build for that component. Per-ticket workflow: run `/grill-me` on the
+folder's `plan.md`, then `/to-prd`, then `/to-issues` (which creates GitHub issues and writes
+the created issue links back into the folder as `issues.md`).
+
+See the master [PRD.md](../PRD.md) for the full v1 spec and the design record.
+
+## Build order
+
+| # | Ticket | Depends on | Summary |
+|---|--------|-----------|---------|
+| 01 | [scaffold](01-scaffold/plan.md) | — | Repo layout, uv, ruff/mypy/pytest, pre-commit, Docker Compose, CI skeleton |
+| 02 | [db-foundation](02-db-foundation/plan.md) | 01 | SQLAlchemy + Alembic, base models, test DB harness |
+| 03 | [auth](03-auth/plan.md) | 02 | Register/login/logout, JWT-cookie, bcrypt, auth dependency |
+| 04 | [hierarchy](04-hierarchy/plan.md) | 03 | Subjects + folders CRUD, user-scoped |
+| 05 | [upload-and-parse](05-upload-and-parse/plan.md) | 04 | File upload, PDF/MD/TXT extraction, Source records |
+| 06 | [ai-flashcards](06-ai-flashcards/plan.md) | 05 | Claude integration, structured JSON, BackgroundTasks, polling popup |
+| 07 | [card-crud](07-card-crud/plan.md) | 06 | View/edit/delete cards |
+| 08 | [sr-algorithm](08-sr-algorithm/plan.md) | 02 | SM-2 pure module + exhaustive unit tests, reviews log |
+| 09 | [review-flows](09-review-flows/plan.md) | 07, 08 | Global (capped) + per-subject (uncapped) review, 4-button grading, tz-aware today |
+| 10 | [settings](10-settings/plan.md) | 09 | Daily cap, timezone, settings UI |
+
+Ordering: 01→02→03 are horizontal foundations. 05→06→07 form the ingestion pipeline.
+08→09→10 form the review pipeline (08 depends only on 02, so it can be built in parallel
+with the ingestion pipeline, but 09 needs both 07 and 08).

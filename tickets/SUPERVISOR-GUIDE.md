@@ -44,9 +44,35 @@ matters — everything it needs (`decisions.md`, `PRD.md`, the issue bodies, the
   *agent*, not one *worktree per issue*).
 - Point it at `tickets/NN-name/PRD.md`, `decisions.md`, and `issues/README.md` and tell it to work
   through the issues **in the dependency order the issues/README.md already lays out**.
-- Tell it explicitly: for each issue, implement → run full quality gates → commit → push → PR
-  (`Closes #<n>`) → wait for CI green → merge → move to the next issue in the same worktree/branch
-  lineage (or a fresh branch off the just-merged main, agent's choice).
+- Tell it explicitly: for each issue, implement → run full quality gates → **self-review pass** →
+  **test-quality pass** → commit → push → PR (`Closes #<n>`) → wait for CI green → merge → move to
+  the next issue in the same worktree/branch lineage (or a fresh branch off the just-merged main,
+  agent's choice). The two passes in bold are mandatory gates *before* committing each issue, not
+  optional extras — see below for exactly what to ask for.
+
+### The two mandatory gates before committing each issue
+
+Bake both of these into the per-ticket agent's brief, to run after the code for an issue is
+written but before it's committed:
+
+1. **Self-review pass.** Literally instruct the agent: *"Do a full thorough check on the code
+   changes made for this issue, and if there are any bugs, errors, or edge cases, sort these out."*
+   This is a deliberate second look at its own diff — not just "did it run once" — looking for
+   logic errors, unhandled edge cases, off-by-one mistakes, and anything that would embarrass the
+   agent if a human read the diff carefully.
+2. **Test-quality pass, not just a green pytest run.** Instruct the agent: *"Make sure the new code
+   for this issue is thoroughly covered by the project's tests (pytest), every case and edge case
+   is fully tested, and that the tests are correct and not stateless — a passing test suite is not
+   sufficient proof; the tests themselves must be verified as actually exercising real behavior."*
+   Concretely this means the agent should sanity-check its own tests, e.g.: temporarily break the
+   implementation (flip a condition, off-by-one a boundary) and confirm the relevant test fails —
+   a test that passes both before and after a real behavior change is not testing anything. Also
+   check for tests that assert on mocks/trivial return values without touching the actual code
+   path, and for missing edge cases the acceptance criteria call for (empty input, boundary values,
+   failure/malformed-input paths) — "it passed" is not the bar; "it would catch a real regression"
+   is.
+
+Only after both passes should the agent commit, push, and open the PR for that issue.
 - Tell it to check `main` for the current state of any *cross-ticket* dependency before starting
   (e.g. ticket 09 needs ticket 08's `scheduling.py` — if it's not there yet, the agent should say so
   and stop rather than build throwaway stand-ins). This has happened multiple times and agents have

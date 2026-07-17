@@ -69,3 +69,32 @@ def login(
         max_age=max_age,
     )
     return response
+
+
+@app.post("/logout")
+def logout(request: Request) -> Response:
+    """Clear the ``access_token`` session cookie and redirect to ``/login``.
+
+    No server-side revocation store exists in v1 (per the ticket-03
+    decisions) -- this simply clears the cookie so the browser stops sending
+    it. A "logged out" token remains cryptographically valid until its
+    ``exp``, which is an accepted, bounded limitation.
+    """
+    settings = get_settings()
+    redirect_target = "/login"
+
+    response: Response
+    if request.headers.get("HX-Request") == "true":
+        response = Response(status_code=200, headers={"HX-Redirect": redirect_target})
+    else:
+        response = RedirectResponse(url=redirect_target, status_code=303)
+
+    # Attributes must match those used in `set_cookie` at login time
+    # (httponly/samesite/secure/path) for the browser to actually clear it.
+    response.delete_cookie(
+        key="access_token",
+        httponly=True,
+        samesite="lax",
+        secure=settings.environment == "production",
+    )
+    return response

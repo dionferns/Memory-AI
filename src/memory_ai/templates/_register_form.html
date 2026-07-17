@@ -1,0 +1,13 @@
+<form id="register-form" hx-post="/register" hx-target="#register-form" hx-swap="outerHTML">
+    <div id="register-error" role="alert">
+        {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    </div>
+
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" value="{{ email or '' }}" required autofocus>
+
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" required minlength="8">
+
+    <button type="submit">Register</button>
+</form>

@@ -12,9 +12,11 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project
 
 COPY src ./src
+COPY alembic ./alembic
+COPY alembic.ini ./alembic.ini
 
 RUN uv sync --frozen
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "memory_ai.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn memory_ai.main:app --reload --host 0.0.0.0 --port 8000"]

@@ -3,6 +3,8 @@
 **Depends on:** 05. **Reuses:** the LLM client boundary from 06. **Goal:** a read-through Q&A quiz
 generated in one shot from a note's full text, browsed one question at a time.
 
+> Decisions locked via `/grill-me` on 2026-07-17 — see [decisions.md](decisions.md).
+
 ## Build
 - The note view (same main-editor surface as the "Convert to Flashcards" button from 06) gets a
   **"Quiz Me"** button per source, independent of flashcard generation — a source can be quizzed

@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from memory_ai.auth import create_access_token, hash_password, verify_password
+from memory_ai.auth import create_access_token, current_user, hash_password, verify_password
 from memory_ai.config import get_settings
 from memory_ai.database import get_db
 from memory_ai.models import User, UserSettings
@@ -28,6 +28,17 @@ templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/me")
+def me(user: User = Depends(current_user)) -> dict[str, str]:  # noqa: B008
+    """Trivial protected demo route proving out the ``current_user`` dependency.
+
+    Later tickets (04+) import and depend on the same ``current_user``
+    dependency for their real protected routes; this route exists purely to
+    exercise it end-to-end.
+    """
+    return {"email": user.email}
 
 
 @app.get("/login")
@@ -166,5 +177,34 @@ def register(
         samesite="lax",
         secure=settings.environment == "production",
         max_age=max_age,
+    )
+    return response
+
+
+@app.post("/logout")
+def logout(request: Request) -> Response:
+    """Clear the ``access_token`` session cookie and redirect to ``/login``.
+
+    No server-side revocation store exists in v1 (per the ticket-03
+    decisions) -- this simply clears the cookie so the browser stops sending
+    it. A "logged out" token remains cryptographically valid until its
+    ``exp``, which is an accepted, bounded limitation.
+    """
+    settings = get_settings()
+    redirect_target = "/login"
+
+    response: Response
+    if request.headers.get("HX-Request") == "true":
+        response = Response(status_code=200, headers={"HX-Redirect": redirect_target})
+    else:
+        response = RedirectResponse(url=redirect_target, status_code=303)
+
+    # Attributes must match those used in `set_cookie` at login time
+    # (httponly/samesite/secure/path) for the browser to actually clear it.
+    response.delete_cookie(
+        key="access_token",
+        httponly=True,
+        samesite="lax",
+        secure=settings.environment == "production",
     )
     return response

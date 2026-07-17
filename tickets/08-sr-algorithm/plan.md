@@ -3,6 +3,10 @@
 **Depends on:** 02 (models only). Can be built in parallel with 05–07. **Goal:** the correctness-critical
 spaced-repetition core as a pure, exhaustively-tested module.
 
+> See [decisions.md](decisions.md) for the exact locked SM-2 formulas (grade→quality mapping, ease
+> update/floor, interval growth, Again-reset behavior, function signatures) resolved via `/grill-me`
+> on 2026-07-17, and [PRD.md](PRD.md) for the full ticket-scoped spec.
+
 ## Build
 - A **pure module**: `(card scheduling state, grade) → (new interval_days, ease_factor, repetitions, due_date)`
   implementing **SM-2**.

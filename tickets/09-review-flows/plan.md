@@ -2,6 +2,10 @@
 
 **Depends on:** 07 and 08. **Goal:** the global daily review and per-subject drill, sharing one schedule.
 
+> See [decisions.md](decisions.md) for locked implementation decisions (ordering/tie-break, cap
+> application, shared query function, HTMX grading interaction, empty state, and the ticket-08
+> timezone-boundary call shape), resolved via `/grill-me` on 2026-07-17.
+
 ## Build
 - **Global daily review:** query cards where `due_date <= today` (user's timezone midnight) across all
   subjects, ordered **most-overdue first**, limited to the user's **daily cap** (`min(cap, due)`).

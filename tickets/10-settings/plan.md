@@ -2,6 +2,9 @@
 
 **Depends on:** 09. **Goal:** let users configure the daily cap and timezone.
 
+> See [decisions.md](decisions.md) for the locked `/grill-me` decisions (bounds, tz validation,
+> form UX, invalid-input handling) and [PRD.md](PRD.md) for the full ticket-scoped spec.
+
 ## Build
 - Settings page (Jinja + HTMX) to view/update `user_settings`:
   - **daily_review_cap** (int, sensible min/max validation)

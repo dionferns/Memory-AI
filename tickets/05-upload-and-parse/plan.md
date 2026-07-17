@@ -8,8 +8,11 @@
   - **pypdf** for text PDFs; direct read for MD/TXT.
   - No OCR / scanned PDFs / images (out of scope) — PDFs with no extractable text fail clearly.
 - Enforce a **file-size cap**; reject oversized uploads with a clear message.
+- Enforce **per-folder filename uniqueness**: reject an upload whose filename already exists in the
+  target folder with a clear error, so notes are never silently overwritten or duplicated.
 - Create a `sources` row storing filename, file_type, extracted `raw_text`, and `status` (initially
-  `processing` — generation is wired in ticket 06). Store extracted text only, not the binary.
+  `stored` — no generation runs automatically; the user triggers it explicitly in ticket 06).
+  Store extracted text only, not the binary.
 - Chunking helper for text exceeding model context (used by 06).
 - Jinja + HTMX upload UI within a folder view.
 

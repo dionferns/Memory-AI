@@ -3,6 +3,8 @@
 **Depends on:** 05. **Goal:** on-demand flashcard generation from a source's text via Claude,
 triggered explicitly by the user, with a processing popup.
 
+> Decisions locked via `/grill-me` on 2026-07-17 — see [decisions.md](decisions.md).
+
 ## Build
 - Uploading a note (05) only stores it as a `sources` row (`status=stored`, no cards) — generation
   never runs automatically on upload.
@@ -12,7 +14,8 @@ triggered explicitly by the user, with a processing popup.
 - On click, transition the source to `processing` and schedule a **FastAPI BackgroundTasks** job
   that: reads `raw_text` → calls the LLM → validates output → writes `cards` → sets source
   `status=done` (or `failed` + `error_message`). Re-clicking on a `done`/`failed` source re-runs
-  generation rather than being blocked (decide replace-vs-append-cards scope at build time).
+  generation rather than being blocked, **replacing** that source's existing cards (see
+  [decisions.md](decisions.md) #5).
 - **LLM client boundary** (injectable/mockable): Anthropic **`claude-sonnet-5`** via official SDK,
   **structured/tool JSON** returning a strict `[{question, answer}]` array validated by Pydantic.
   Malformed output → generation failure. `ANTHROPIC_API_KEY` from env.

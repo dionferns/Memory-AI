@@ -1,0 +1,36 @@
+# 12 — Notes Quiz: Locked Decisions
+
+Record of decisions resolved via `/grill-me` on 2026-07-17 (no open questions for the user — every
+branch below is decided by the agent's recommendation per the project's established patterns).
+Source of truth for the notes-quiz ticket; the PRD and issues derive from this.
+
+| # | Decision | Choice | Rationale |
+|---|----------|--------|-----------|
+| 1 | Structured/tool-JSON schema for the batch call | A strict JSON array `[{question: str, answer: str}]`, one array covering the whole note, validated by a Pydantic model (`list[QuizQuestion]`) — same validation pattern as 06's `[{question, answer}]` for cards | Reuses the exact shape and validation approach 06 already establishes; no new schema concept, only a new Pydantic model with quiz-appropriate field names |
+| 2 | Chunking behavior when a note exceeds context | **Out of scope for v1.** If 05's chunking helper reports the note's `raw_text` doesn't fit in one call, the quiz call fails clearly (`"note too long for quiz generation"`) rather than issuing multiple LLM calls and merging results | The plan is explicit that the LLM is invoked "exactly once per quiz start" and lists no merge/dedup logic. Multi-call merging raises real design questions (duplicate/overlapping questions across chunks, ordering, partial failure) that the plan never addresses — inventing that behavior would be scope creep, not a grill-me resolution. A single clear failure path is cheap to build and honest about the v1 limitation; multi-chunk quiz generation is deferred to a future ticket if oversized notes turn out to be common |
+| 3 | Ephemeral quiz-session state storage | **Client-side.** The single LLM response (`[{question, answer}]`) is rendered into the initial HTML page as inline JSON-in-template-data (or embedded as data attributes), and Next/Previous/Show-Answer are pure client-side JS operating on an in-memory index into that already-fetched array — no further HTTP round-trips, no server-side session/cache keyed by a session id | The plan explicitly says "no free-text input, no additional LLM calls during navigation" and "no path back to the AI after the initial call" — the simplest architecture consistent with that is to hand the whole set to the client once and let it own navigation state locally. A server-side session/cache adds a new stateful concept (expiry, cross-tab behavior, memory growth) to satisfy a need better served by data already in the browser. This is a deliberate, minimal departure from the project's usual "HTMX GET swaps drive all interaction" style, justified because there is no server round-trip left to make once generation completes — the quiz set is fully self-contained client data by design |
+| 4 | Processing-popup mechanics | **Synchronous request, no polling.** Clicking "Quiz Me" is a single POST that runs the (one) LLM call inline and returns the rendered quiz page/fragment directly, with a simple client-side loading indicator (button disabled + spinner) rather than 06's BackgroundTasks+poll pattern | 06's polling pattern exists because flashcard generation can process large note sets and the UX wants an early "processing" response while a background task runs. Here the plan caps the work at exactly one LLM call per quiz start with no per-question follow-up, so the request is bounded and comparable in cost to any other single-call LLM route already in the app. Introducing BackgroundTasks + a status-polling endpoint + ephemeral job-state tracking for a single bounded call adds machinery the ticket doesn't need. If real-world latency proves this wrong, swapping to the polling pattern is a small follow-up, not a rework of the data model |
+| 5 | Navigation-bounds behavior | Next/Previous are simple index bounds checks: at index 0, "Previous" is disabled/no-ops; at the last index, "Next" is disabled/no-ops. No wraparound in either direction | Directly stated in the plan ("no wraparound past first/last") — recorded here for completeness since it drives the client-side navigation logic decided in #3 |
+| 6 | Show Answer toggle scope | Per-question, reset on navigation — moving to a new question always starts with the answer hidden; toggling "Show Answer" affects only the currently displayed question | Matches "Show Answer button reveals that question's answer" read as a per-question action; avoids surprising carry-over where an answer stays visible after navigating away and back |
+| 7 | Quiz Me button placement & independence from flashcards | Rendered in the same note-view main-editor surface as 06's "Convert to Flashcards" button, as a sibling action, with no dependency on a source's flashcard-generation `status` | Plan states explicitly: "independent of flashcard generation — a source can be quizzed with or without ever converting to flashcards" |
+| 8 | Persistence of the generated quiz set | Not persisted anywhere — no new DB table, no write to `cards`, no tie to SM-2/`due_date`/`reviews`. Refreshing the page or navigating away loses the quiz; re-clicking "Quiz Me" regenerates via a fresh LLM call | Plan states the quiz set "is ephemeral to the session by default — it is not persisted as `cards` and is not tied to SM-2 scheduling; it's a distinct, disposable artifact from flashcards, not a review mode." No DB model for this ticket keeps its footprint minimal and matches "distinct, disposable" |
+| 9 | LLM client boundary reuse | Reuses 06's injectable/mockable Anthropic client wrapper (same `claude-sonnet-5`, structured/tool JSON call mechanism) rather than a new client abstraction; only the request prompt and the response Pydantic model differ (quiz Q&A vs. flashcard Q&A) | Plan states "same injectable/mockable client pattern as 06." Ticket 12 depends on 06 having established that seam; this ticket does not re-invent it |
+
+## Notes
+- Decision #3 (client-side state) means this ticket introduces **no new server-side session/cache
+  concept** and **no new HTTP endpoints for navigation** — only the single generation endpoint
+  (decision #4) and the initial page render. Next/Previous/Show-Answer are DOM/JS state changes
+  with zero network calls, which also trivially satisfies the plan's "no additional LLM calls
+  during navigation" and "no re-querying the LLM mid-quiz" requirements — there's no server call to
+  make at all, so there's nothing to accidentally wire to the LLM.
+- Decision #4 (synchronous, no popup-polling) means the loading UX is a simple disabled-button/
+  spinner state during the single request-response round trip, not a distinct popup component with
+  its own status endpoint. If a quiz-sized note ever proves slow enough in practice to need the
+  polling pattern, that's a scoped follow-up ticket, not a mid-ticket redesign.
+- Decision #2 (chunking out of scope) is a real v1 limitation for very long notes; it's recorded
+  here explicitly so it isn't rediscovered as a "bug" later, matching the pattern ticket 03 used to
+  flag its own accepted limitation (no server-side JWT revocation).
+- This ticket is blocked on ticket 05 (needs `sources.raw_text` and the chunking helper to detect
+  the too-long case) and reuses the LLM client boundary from ticket 06 (decision #9); neither is
+  implemented yet as of this writing, so issues in this ticket reference them in prose rather than
+  by issue number.

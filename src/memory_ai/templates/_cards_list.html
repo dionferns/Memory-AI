@@ -1,0 +1,8 @@
+{% if not cards %}
+<p id="{{ empty_state_id }}">No cards yet.</p>
+{% endif %}
+<ul id="{{ list_id }}">
+    {% for card in cards %}
+        {% include "_card_row.html" %}
+    {% endfor %}
+</ul>

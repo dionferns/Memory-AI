@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cards - {{ folder.name }} - Memory AI</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body>
+    <main>
+        <h1>Cards in {{ folder.name }}</h1>
+        {% set list_id = "folder-" ~ folder.id ~ "-cards" %}
+        {% set empty_state_id = "folder-" ~ folder.id ~ "-cards-empty" %}
+        {% include "_cards_list.html" %}
+    </main>
+</body>
+</html>

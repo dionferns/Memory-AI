@@ -8,3 +8,5 @@
         hx-target="#folder-{{ folder.id }}"
         hx-swap="outerHTML"
         hx-confirm="Delete this folder and everything inside it?">Delete</button>
+{% set sources = folder.sources %}
+{% include "_folder_sources_section.html" %}

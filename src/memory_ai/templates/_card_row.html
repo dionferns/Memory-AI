@@ -2,4 +2,8 @@
     <span id="card-{{ card.id }}-front">{{ card.front }}</span>
     &mdash;
     <span id="card-{{ card.id }}-back">{{ card.back }}</span>
+    <button type="button"
+            hx-get="/cards/{{ card.id }}/edit"
+            hx-target="#card-{{ card.id }}"
+            hx-swap="outerHTML">Edit</button>
 </li>

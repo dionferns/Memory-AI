@@ -1,0 +1,28 @@
+<form id="settings-form" hx-post="/settings" hx-target="#settings-form" hx-swap="outerHTML">
+    {% if success %}<p class="success" role="status">Settings updated.</p>{% endif %}
+
+    <label for="daily_review_cap">Daily review cap</label>
+    <input
+        type="number"
+        id="daily_review_cap"
+        name="daily_review_cap"
+        min="1"
+        max="500"
+        value="{{ daily_review_cap }}"
+        required
+    >
+    {% if cap_error %}<p class="error" id="daily_review_cap-error" role="alert">{{ cap_error }}</p>{% endif %}
+
+    <label for="timezone">Timezone</label>
+    <select id="timezone" name="timezone" required>
+        {% if timezone_error and timezone not in timezones %}
+        <option value="{{ timezone }}" selected>{{ timezone }} (invalid)</option>
+        {% endif %}
+        {% for tz in timezones %}
+        <option value="{{ tz }}" {% if tz == timezone %}selected{% endif %}>{{ tz }}</option>
+        {% endfor %}
+    </select>
+    {% if timezone_error %}<p class="error" id="timezone-error" role="alert">{{ timezone_error }}</p>{% endif %}
+
+    <button type="submit">Save</button>
+</form>

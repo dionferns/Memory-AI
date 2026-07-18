@@ -1,0 +1,6 @@
+<li id="subject-{{ subject.id }}"{% if oob %} hx-swap-oob="beforeend:#subjects-list"{% endif %}>
+    {% include "_subject_header_view.html" %}
+    <div id="subject-{{ subject.id }}-folders-section">
+        {% include "_subject_folders_section.html" %}
+    </div>
+</li>

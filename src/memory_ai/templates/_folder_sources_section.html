@@ -1,0 +1,36 @@
+<div id="folder-{{ folder.id }}-sources-section">
+    <div id="folder-{{ folder.id }}-upload-error" role="alert">
+        {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    </div>
+
+    {% if not sources %}
+    <p id="sources-empty-state-{{ folder.id }}">No files uploaded yet.</p>
+    {% endif %}
+    <ul id="sources-list-{{ folder.id }}">
+        {% for source in sources %}
+        <li id="source-{{ source.id }}">
+            {{ source.filename }}
+            {% include "_source_status.html" %}
+            <button type="button"
+                    id="quiz-me-{{ source.id }}"
+                    hx-post="/sources/{{ source.id }}/quiz"
+                    hx-target="#quiz-result-{{ source.id }}"
+                    hx-swap="innerHTML"
+                    hx-indicator="#quiz-loading-{{ source.id }}"
+                    hx-disabled-elt="this">Quiz Me</button>
+            <span id="quiz-loading-{{ source.id }}" class="htmx-indicator">Generating quiz&hellip;</span>
+            <div id="quiz-result-{{ source.id }}"></div>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <form id="upload-form-{{ folder.id }}"
+          hx-post="/folders/{{ folder.id }}/sources"
+          hx-target="#folder-{{ folder.id }}-sources-section"
+          hx-swap="outerHTML"
+          hx-encoding="multipart/form-data">
+        <label for="upload-file-input-{{ folder.id }}">Upload a note (PDF, MD, or TXT)</label>
+        <input type="file" id="upload-file-input-{{ folder.id }}" name="file" required>
+        <button type="submit">Upload</button>
+    </form>
+</div>

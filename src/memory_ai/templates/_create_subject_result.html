@@ -1,0 +1,5 @@
+{% with oob=True %}
+    {% include "_subject_row.html" %}
+{% endwith %}
+<div id="subjects-empty-state" hx-swap-oob="true" style="display:none"></div>
+{% include "_create_subject_form.html" %}

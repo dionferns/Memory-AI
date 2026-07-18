@@ -13,8 +13,8 @@ day-boundary concept, not an instant.
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, Text
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Text, text
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 # All ``datetime`` columns are timezone-aware (Postgres ``TIMESTAMPTZ``),
 # storing values in UTC. ``cards.due_date`` is the one exception and uses a
@@ -56,6 +56,22 @@ class Subject(Base):
     name: Mapped[str] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(_TIMESTAMPTZ, nullable=False)
 
+    # For eager-loading a user's subjects together with their folders in a
+    # single query shape (ticket 04 decision #7) -- this relationship exists
+    # purely to support that read pattern via `selectinload`; deletes still
+    # go through a plain `DELETE` on the row with cascading handled entirely
+    # by the DB's `ON DELETE CASCADE` (ticket 04 decision #13), not by any
+    # ORM-level cascade configured here. `passive_deletes=True` is required
+    # for that split to actually work: without it, the ORM's default
+    # behavior on a parent delete is to try to UPDATE any *already-loaded*
+    # child rows' FK to NULL, which both duplicates the DB's own cascade
+    # logic and fails outright here since `folders.subject_id` is NOT NULL.
+    folders: Mapped[list["Folder"]] = relationship(
+        back_populates="subject",
+        order_by="Folder.created_at, Folder.id",
+        passive_deletes=True,
+    )
+
 
 class Folder(Base):
     __tablename__ = "folders"
@@ -67,9 +83,37 @@ class Folder(Base):
     name: Mapped[str] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(_TIMESTAMPTZ, nullable=False)
 
+    subject: Mapped["Subject"] = relationship(back_populates="folders")
+
+    # Same eager-load-friendly / DB-cascade-only split as `Subject.folders`
+    # above (ticket 04 decision #7 / #13): this relationship exists so the
+    # folder view can `selectinload` a folder's sources in one follow-up
+    # query, while actual deletes are handled entirely by the DB's
+    # `ON DELETE CASCADE` on `sources.folder_id`, not by the ORM.
+    sources: Mapped[list["Source"]] = relationship(
+        back_populates="folder",
+        order_by="Source.created_at, Source.id",
+        passive_deletes=True,
+    )
+
 
 class Source(Base):
     __tablename__ = "sources"
+    __table_args__ = (
+        # Ticket 05 decision #10: per-folder filename uniqueness is
+        # case-insensitive and enforced at the DB level, not just in
+        # application code -- a functional unique index on
+        # `(folder_id, lower(filename))`. The upload route attempts the
+        # insert and catches the resulting `IntegrityError` (same
+        # insert-then-catch pattern already locked for duplicate emails in
+        # ticket 03), rather than pre-checking with a separate `SELECT`.
+        Index(
+            "ix_sources_folder_id_lower_filename",
+            "folder_id",
+            text("lower(filename)"),
+            unique=True,
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     folder_id: Mapped[int] = mapped_column(
@@ -81,6 +125,19 @@ class Source(Base):
     status: Mapped[str] = mapped_column(nullable=False)
     error_message: Mapped[str | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(_TIMESTAMPTZ, nullable=False)
+
+    folder: Mapped["Folder"] = relationship(back_populates="sources")
+
+    # Read-only convenience relationship for rendering a source's generated
+    # cards (ticket 06). `viewonly=True` because writes go through explicit
+    # `INSERT`/`DELETE` statements in the generation job and convert route
+    # (replace-on-retrigger, ticket 06 decision #5) rather than the ORM's
+    # own add/cascade machinery -- this relationship exists purely for the
+    # lazy-loaded read side.
+    cards: Mapped[list["Card"]] = relationship(
+        order_by="Card.created_at, Card.id",
+        viewonly=True,
+    )
 
 
 class Card(Base):

@@ -40,6 +40,38 @@ _DEFAULT_TIMEZONE = "UTC"
 
 _MIN_PASSWORD_LENGTH = 8
 
+# A fixed, precomputed bcrypt hash used solely to equalize `POST /login`
+# response time when the submitted email doesn't exist. Even on the
+# unknown-email branch we run exactly one `verify_password` (against this
+# dummy) so that an unregistered email and a registered email with a wrong
+# password take comparable time, closing the user-enumeration timing
+# side-channel (issue #119). This is never a valid credential.
+_DUMMY_PASSWORD_HASH = "$2b$12$uY12Nq1zcQFwiVloF22AB.WnYm5Xam2jy3Jnz1qlYQnZtGqPVaEQa"
+
+
+def _normalize_email(raw: str) -> str:
+    """Trim surrounding whitespace and lowercase an email for storage/lookup.
+
+    Registration and login both run submitted emails through this so that
+    ``User@x.com`` and ``user@x.com`` resolve to the same account rather than
+    two case-distinct ones (issue #121).
+    """
+    return raw.strip().lower()
+
+
+def _validate_email(email: str) -> str | None:
+    """Validate an already-normalized email; return an error message or ``None``.
+
+    Rejects empty/whitespace-only input and anything without an ``@`` so a
+    blank or clearly-malformed address can't be stored verbatim (issue #120).
+    """
+    if not email:
+        return "Email is required."
+    if "@" not in email:
+        return "Please enter a valid email address."
+    return None
+
+
 # `daily_review_cap` bounds (ticket 10 decision #1): integer, 1..500 inclusive.
 _MIN_DAILY_REVIEW_CAP = 1
 _MAX_DAILY_REVIEW_CAP = 500
@@ -89,9 +121,18 @@ def login(
     partial with a generic error so an HTMX partial swap can show it inline,
     without revealing whether the email exists.
     """
+    email = _normalize_email(email)
     user = db.query(User).filter(User.email == email).one_or_none()
 
-    if user is None or not verify_password(password, user.password_hash):
+    # Always run exactly one bcrypt verification -- against the real hash when
+    # the user exists, otherwise against a fixed dummy hash -- so the
+    # unknown-email and wrong-password branches take comparable time and an
+    # attacker can't enumerate registered emails by response latency
+    # (issue #119). The generic error message already avoids leaking existence.
+    password_hash = user.password_hash if user is not None else _DUMMY_PASSWORD_HASH
+    password_ok = verify_password(password, password_hash)
+
+    if user is None or not password_ok:
         return templates.TemplateResponse(
             request,
             "_login_form.html",
@@ -141,6 +182,19 @@ def register(
     pre-check ``SELECT``, avoiding a check-then-insert race. The `users` and
     `user_settings` rows are inserted in a single transaction (decision #13).
     """
+    email = _normalize_email(email)
+
+    email_error = _validate_email(email)
+    if email_error:
+        return templates.TemplateResponse(
+            request,
+            "_register_form.html",
+            {
+                "error": email_error,
+                "email": email,
+            },
+        )
+
     if len(password) < _MIN_PASSWORD_LENGTH:
         return templates.TemplateResponse(
             request,

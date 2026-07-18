@@ -17,6 +17,11 @@
     <button type="button" id="quiz-prev-{{ source.id }}">Previous</button>
     <button type="button" id="quiz-next-{{ source.id }}">Next</button>
 </div>
-<script src="/static/quiz.js"></script>
+{#
+  quiz.js is loaded once in subjects.html's <head> (issue #123), so this
+  fragment only needs to initialize navigation over the embedded question set
+  -- it must NOT re-inject `<script src="/static/quiz.js">`, whose async load
+  could race ahead of this synchronous init() call on the first "Quiz Me".
+#}
 <script>MemoryAIQuiz.init("{{ source.id }}");</script>
 {% endif %}

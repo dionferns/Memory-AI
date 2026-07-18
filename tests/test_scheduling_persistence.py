@@ -10,6 +10,7 @@ persistence-helper test seam.
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -107,6 +108,62 @@ def test_apply_grade_to_card_does_not_commit_or_flush(db_session: Session) -> No
     # Still pending (added, not flushed/committed) and has no PK assigned yet.
     assert review in db_session.new
     assert review.id is None
+
+
+def test_apply_grade_to_card_again_resets_state_and_captures_prev_interval(
+    db_session: Session,
+) -> None:
+    """The lapse branch (grade 'again' from a deep-repetition card): repetitions
+    reset to 0 and interval collapses to 1, the ease is still reduced by the
+    formula (not reset), and the Review row records the *pre-reset* interval as
+    prev_interval_days and the post-reset 1 as new_interval_days."""
+    card = _make_card(db_session, ease_factor=2.5, interval_days=40, repetitions=5)
+    now_utc = datetime(2026, 7, 17, 12, 0, 0, tzinfo=UTC)
+
+    today = today_in_tz(now_utc, UTC_TZ)
+    expected = apply_sm2(
+        ease_factor=2.5, interval_days=40, repetitions=5, grade="again", today=today
+    )
+    # Sanity: this really is exercising the reset branch.
+    assert expected.repetitions == 0
+    assert expected.interval_days == 1
+    assert expected.ease_factor == pytest.approx(1.7)
+
+    review = apply_grade_to_card(db_session, card, "again", now_utc, UTC_TZ)
+    db_session.flush()
+
+    assert card.repetitions == 0
+    assert card.interval_days == 1
+    assert card.ease_factor == expected.ease_factor
+    assert card.due_date == expected.due_date
+    assert card.last_reviewed_at == now_utc
+
+    assert review.grade == "again"
+    assert review.prev_interval_days == 40
+    assert review.new_interval_days == 1
+
+
+def test_apply_grade_to_card_uses_non_utc_timezone_for_due_date(db_session: Session) -> None:
+    """The helper must resolve "today" in the caller-supplied timezone, not UTC:
+    at 2026-07-17T23:30Z, Pacific/Kiritimati (+14) has already rolled into
+    2026-07-18, so a grade with interval 1 is due 2026-07-19, not 2026-07-18."""
+    kiritimati = ZoneInfo("Pacific/Kiritimati")
+    card = _make_card(db_session, ease_factor=2.5, interval_days=0, repetitions=0)
+    now_utc = datetime(2026, 7, 17, 23, 30, 0, tzinfo=UTC)
+
+    local_today = today_in_tz(now_utc, kiritimati)
+    assert local_today == date(2026, 7, 18)  # ahead of the UTC calendar date
+    expected = apply_sm2(
+        ease_factor=2.5, interval_days=0, repetitions=0, grade="good", today=local_today
+    )
+
+    apply_grade_to_card(db_session, card, "good", now_utc, kiritimati)
+    db_session.flush()
+
+    assert card.interval_days == 1
+    assert card.due_date == expected.due_date == date(2026, 7, 19)
+    # last_reviewed_at is stored as the raw UTC instant, unaffected by tz.
+    assert card.last_reviewed_at == now_utc
 
 
 def test_apply_grade_to_card_two_calls_in_sequence(db_session: Session) -> None:

@@ -23,6 +23,7 @@ See the master [PRD.md](../PRD.md) for the full v1 spec and the design record.
 | 10 | [settings](10-settings/plan.md) | 09 | Daily cap, timezone, settings UI |
 | 11 | [written-answer-feedback](11-written-answer-feedback/plan.md) | 09 | Free-text review answers, LLM-graded outcome drives SM-2 grading |
 | 12 | [notes-quiz](12-notes-quiz/plan.md) | 05 | "Quiz Me" — one-shot LLM Q&A batch over a note, browsed one question at a time |
+| 13 | [ui-color-palette](13-ui-color-palette/plan.md) | — | Global dark-theme stylesheet using a user-supplied 4-color palette, linked from every existing page |
 
 Ordering: 01→02→03 are horizontal foundations. 05→06→07 form the ingestion pipeline.
 08→09→10 form the review pipeline (08 depends only on 02, so it can be built in parallel

@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from memory_ai.auth import create_access_token, current_user, hash_password, verify_password
+from memory_ai.cards import router as cards_router
 from memory_ai.config import get_settings
 from memory_ai.database import get_db
 from memory_ai.generation import router as generation_router
@@ -22,6 +23,7 @@ app = FastAPI(title="Memory AI")
 app.include_router(hierarchy_router)
 app.include_router(generation_router)
 app.include_router(quiz_router)
+app.include_router(cards_router)
 
 # Serves src/memory_ai/static/quiz.js: the client-side Next/Previous/Show
 # Answer navigation for notes-quiz mode (ticket 12, issue #65). No other

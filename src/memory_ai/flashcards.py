@@ -161,3 +161,12 @@ class AnthropicFlashcardGenerator:
             raise FlashcardValidationError(f"invalid emit_flashcards input: {exc}") from exc
 
         return parsed.cards
+
+
+def get_flashcard_generator() -> FlashcardGenerator:
+    """FastAPI dependency providing the real ``FlashcardGenerator``.
+
+    Overridden in tests with a fake/mock implementation so no test ever
+    makes a real Anthropic API call.
+    """
+    return AnthropicFlashcardGenerator()

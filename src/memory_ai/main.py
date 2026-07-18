@@ -12,11 +12,13 @@ from sqlalchemy.orm import Session
 from memory_ai.auth import create_access_token, current_user, hash_password, verify_password
 from memory_ai.config import get_settings
 from memory_ai.database import get_db
+from memory_ai.generation import router as generation_router
 from memory_ai.hierarchy import router as hierarchy_router
 from memory_ai.models import User, UserSettings
 
 app = FastAPI(title="Memory AI")
 app.include_router(hierarchy_router)
+app.include_router(generation_router)
 
 # Sane defaults applied to every new user's `user_settings` row at
 # registration (ticket 03 decision #13 / PRD user story #5).

@@ -8,7 +8,10 @@
     {% endif %}
     <ul id="sources-list-{{ folder.id }}">
         {% for source in sources %}
-        <li id="source-{{ source.id }}">{{ source.filename }}</li>
+        <li id="source-{{ source.id }}">
+            {{ source.filename }}
+            {% include "_source_status.html" %}
+        </li>
         {% endfor %}
     </ul>
 

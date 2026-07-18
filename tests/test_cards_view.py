@@ -277,3 +277,50 @@ def test_list_folder_cards_excludes_cards_from_other_folders(
     assert response.status_code == 200
     assert "Q-A" in response.text
     assert "Q-B" not in response.text
+
+
+# --- GET /cards/{card_id} (single-card display fragment) --------------------
+
+
+def test_view_card_returns_row_fragment_for_owner(
+    authed_client: TestClient, db_session: Session, my_folder: Folder
+) -> None:
+    source = _make_source(db_session, my_folder.id)
+    card = _make_card(db_session, source.id, my_folder.id, "Front Q", "Back A", datetime.now(UTC))
+
+    response = authed_client.get(f"/cards/{card.id}")
+
+    assert response.status_code == 200
+    assert f"card-{card.id}" in response.text
+    assert "Front Q" in response.text
+    assert "Back A" in response.text
+
+
+def test_view_card_for_other_users_card_returns_404_not_403(
+    authed_client: TestClient, db_session: Session, their_folder: Folder
+) -> None:
+    """A card owned (via the source->folder->subject chain) by another user
+    must be indistinguishable from a nonexistent one: a plain 404, never 403."""
+    their_source = _make_source(db_session, their_folder.id)
+    their_card = _make_card(
+        db_session, their_source.id, their_folder.id, "Secret", "Answer", datetime.now(UTC)
+    )
+
+    response = authed_client.get(f"/cards/{their_card.id}")
+
+    assert response.status_code == 404
+    assert response.status_code != 403
+    assert "Secret" not in response.text
+
+
+def test_view_nonexistent_card_returns_404(authed_client: TestClient) -> None:
+    response = authed_client.get("/cards/999999999")
+
+    assert response.status_code == 404
+
+
+def test_view_card_unauthenticated_redirects(client: TestClient) -> None:
+    response = client.get("/cards/1", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers.get("location") == "/login"

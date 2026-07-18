@@ -29,6 +29,7 @@ from memory_ai.auth import create_access_token, hash_password
 from memory_ai.main import app
 from memory_ai.models import Card, Folder, Source, Subject, User
 from memory_ai.quiz import (
+    EMPTY_NOTE_MESSAGE,
     GENERATION_FAILED_MESSAGE,
     TOO_LONG_MESSAGE,
     QuizQuestion,
@@ -275,6 +276,30 @@ def test_generate_quiz_exactly_max_chars_note_does_not_trip_the_too_long_path(
 
     assert response.status_code == 200
     assert generator.call_count == 1
+
+
+@pytest.mark.parametrize("blank_text", ["", "   \n\t  "])
+def test_generate_quiz_empty_or_blank_note_fails_before_any_llm_call(
+    authed_client: TestClient, db_session: Session, my_folder: Folder, blank_text: str
+) -> None:
+    """A source with empty/whitespace-only raw_text (e.g. not yet parsed) must
+    fail clearly *before* the LLM is invoked, not burn a call on blank input
+    and surface an opaque 502 (issue #124)."""
+    blank_source = _make_source(db_session, my_folder.id, blank_text)
+    generator = _FakeQuizGenerator(questions=[QuizQuestion(question="Q", answer="A")])
+    _override_generator(generator)
+
+    response = authed_client.post(f"/sources/{blank_source.id}/quiz")
+
+    assert response.status_code == 422
+    assert (
+        f'<p class="error" id="quiz-error-{blank_source.id}">{EMPTY_NOTE_MESSAGE}</p>'
+        in response.text
+    )
+    # The LLM mock must never be invoked for a blank note.
+    assert generator.call_count == 0
+    assert generator.received_text == []
+    assert db_session.execute(select(Card)).scalars().all() == []
 
 
 def test_generate_quiz_requires_authentication(my_source: Source, client: TestClient) -> None:

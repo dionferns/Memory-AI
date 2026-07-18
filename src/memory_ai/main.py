@@ -164,7 +164,7 @@ def login(
     token = create_access_token(user.id)
     max_age = settings.access_token_expire_minutes * 60
 
-    redirect_target = "/"
+    redirect_target = "/subjects"
     response: Response
     if request.headers.get("HX-Request") == "true":
         response = Response(status_code=200, headers={"HX-Redirect": redirect_target})
@@ -267,7 +267,7 @@ def register(
     token = create_access_token(user.id)
     max_age = settings.access_token_expire_minutes * 60
 
-    redirect_target = "/"
+    redirect_target = "/subjects"
     response: Response
     if request.headers.get("HX-Request") == "true":
         response = Response(status_code=200, headers={"HX-Redirect": redirect_target})

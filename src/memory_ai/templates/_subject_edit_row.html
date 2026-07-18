@@ -1,0 +1,20 @@
+<li id="subject-{{ subject.id }}">
+    <form hx-patch="/subjects/{{ subject.id }}"
+          hx-target="#subject-{{ subject.id }}"
+          hx-swap="outerHTML">
+        <div id="subject-{{ subject.id }}-edit-error" role="alert">
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+        </div>
+        <label for="subject-{{ subject.id }}-name-input">Subject name</label>
+        <input type="text"
+               id="subject-{{ subject.id }}-name-input"
+               name="name"
+               value="{{ name if name is defined else subject.name }}"
+               autofocus>
+        <button type="submit">Save</button>
+        <button type="button"
+                hx-get="/subjects/{{ subject.id }}"
+                hx-target="#subject-{{ subject.id }}"
+                hx-swap="outerHTML">Cancel</button>
+    </form>
+</li>

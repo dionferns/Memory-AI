@@ -10,8 +10,20 @@
 <body>
     <main>
         <h1>{{ heading }}</h1>
+        <p>
+            {% set toggle_base = ("/review/subjects/" ~ subject_id) if subject_id else "/review" %}
+            {% if written %}
+            <a href="{{ toggle_base }}?written=0" id="written-mode-toggle">Turn off written-answer mode</a>
+            {% else %}
+            <a href="{{ toggle_base }}?written=1" id="written-mode-toggle">Turn on written-answer mode</a>
+            {% endif %}
+        </p>
         {% if card %}
-            {% include "_review_card_front.html" %}
+            {% if written %}
+                {% include "_review_card_front_written.html" %}
+            {% else %}
+                {% include "_review_card_front.html" %}
+            {% endif %}
         {% else %}
             {% include "_review_empty.html" %}
         {% endif %}

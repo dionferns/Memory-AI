@@ -44,6 +44,11 @@ from memory_ai.database import get_db
 from memory_ai.models import Card, Folder, Source, Subject, User, UserSettings
 from memory_ai.reviews.queries import get_due_cards
 from memory_ai.scheduling import Grade, apply_grade_to_card, today_in_tz
+from memory_ai.written_answer import (
+    WrittenAnswerGrader,
+    WrittenAnswerGradingError,
+    get_written_answer_grader,
+)
 
 router = APIRouter()
 
@@ -55,6 +60,25 @@ _SUBJECT_EMPTY_MESSAGE = "Nothing due in this subject right now."
 
 _VALID_GRADES: frozenset[str] = frozenset({"again", "hard", "good", "easy"})
 _VALID_SCOPES: frozenset[str] = frozenset({"global", "subject"})
+
+# Outcome -> pre-selected grade mapping for written-answer mode (ticket 11
+# decisions.md #10): perfect->easy, good->good, wrong->again. "Hard" is
+# never auto-mapped -- it stays reachable only via manual override, per
+# decisions.md #6.
+_OUTCOME_TO_GRADE: dict[str, Grade] = {
+    "perfect": "easy",
+    "good": "good",
+    "wrong": "again",
+}
+
+# Single, generic fallback notice shown for every written-answer grading
+# failure (timeout, unparseable response, or out-of-enum outcome) -- ticket
+# 11 decisions.md #3 collapses all three into one failure classification at
+# the LLM boundary, so there is exactly one notice here too, not one per
+# failure mode.
+_WRITTEN_ANSWER_FAILURE_NOTICE = (
+    "We couldn't grade your answer right now -- showing the card to grade manually instead."
+)
 
 
 def _get_owned_subject(db: Session, subject_id: int, user_id: int) -> Subject:
@@ -108,10 +132,18 @@ def _resolve_boundary(user_settings: UserSettings) -> tuple[datetime, ZoneInfo]:
 @router.get("/review")
 def review_global(
     request: Request,
+    written: str | None = None,
     user: User = Depends(current_user),  # noqa: B008
     db: Session = Depends(get_db),  # noqa: B008
 ) -> Response:
-    """Render the global daily review: first due card (capped) or empty state."""
+    """Render the global daily review: first due card (capped) or empty state.
+
+    ``written`` is the per-review-session written-answer-mode toggle (ticket
+    11 decisions.md #4) -- a plain query param, not a DB-backed setting, so
+    it defaults to off on every fresh page load and is carried forward
+    through subsequent card advances via a hidden form field (see
+    ``grade_card``).
+    """
     user_settings = _get_user_settings(db, user.id)
     now_utc, tz = _resolve_boundary(user_settings)
     boundary = today_in_tz(now_utc, tz)
@@ -130,6 +162,7 @@ def review_global(
             "scope": "global",
             "subject_id": None,
             "empty_message": _GLOBAL_EMPTY_MESSAGE,
+            "written": written == "1",
         },
     )
 
@@ -138,6 +171,7 @@ def review_global(
 def review_subject(
     subject_id: int,
     request: Request,
+    written: str | None = None,
     user: User = Depends(current_user),  # noqa: B008
     db: Session = Depends(get_db),  # noqa: B008
 ) -> Response:
@@ -164,6 +198,7 @@ def review_subject(
             "scope": "subject",
             "subject_id": subject.id,
             "empty_message": _SUBJECT_EMPTY_MESSAGE,
+            "written": written == "1",
         },
     )
 
@@ -207,6 +242,7 @@ def grade_card(
     grade: str = Form(...),
     scope: str = Form(...),
     subject_id: int | None = Form(None),
+    written: str | None = Form(None),
     user: User = Depends(current_user),  # noqa: B008
     db: Session = Depends(get_db),  # noqa: B008
 ) -> Response:
@@ -259,8 +295,90 @@ def grade_card(
             {"scope": scope, "subject_id": subject_id, "empty_message": empty_message},
         )
 
+    # Written-answer mode (ticket 11) is carried forward from a hidden form
+    # field, not re-derived -- this is what keeps the per-session toggle "on"
+    # across card advances regardless of whether the *previous* card was
+    # graded via the LLM path or the fallback path. `apply_grade_to_card`
+    # above is completely unaffected by this flag; it only changes which
+    # front partial gets rendered next (ticket 11 decisions.md #9: this
+    # route's grading behavior is unaware written-answer mode exists).
+    front_template = (
+        "_review_card_front_written.html" if written == "1" else "_review_card_front.html"
+    )
     return templates.TemplateResponse(
         request,
-        "_review_card_front.html",
+        front_template,
         {"card": next_card, "scope": scope, "subject_id": subject_id},
+    )
+
+
+@router.post("/review/{card_id}/answer")
+def submit_written_answer(
+    card_id: int,
+    request: Request,
+    user_answer: str = Form(...),
+    scope: str = Form(...),
+    subject_id: int | None = Form(None),
+    user: User = Depends(current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
+    grader: WrittenAnswerGrader = Depends(get_written_answer_grader),  # noqa: B008
+) -> Response:
+    """Grade a written answer via the LLM boundary and reveal the result (ticket 11, issue #69).
+
+    This is *not* a second grading/persistence path: it never calls
+    ``apply_grade_to_card`` and never mutates any scheduling state -- it only
+    calls ticket 11's ``WrittenAnswerGrader`` boundary and renders one of two
+    partials:
+
+    - On success: ``_review_card_graded.html``, which reveals the gold
+      answer, the outcome badge, the feedback text, and the same four grade
+      buttons ``_review_card_back.html`` renders, with the mapped button
+      (decisions.md #10) pre-highlighted. All four buttons remain clickable
+      (decisions.md #6) -- clicking a non-pre-selected one simply changes
+      the selection before the user's next POST to ``/review/grade/{card_id}``,
+      ticket 09's existing grading route, which is what actually persists a
+      grade.
+    - On any grading failure (network/timeout, unparseable response, or an
+      out-of-enum outcome -- all pre-classified identically as
+      ``WrittenAnswerGradingError`` by the LLM boundary, decisions.md #3):
+      ``_review_card_back.html`` (the same plain flip-and-grade partial
+      ticket 09's "Show answer" reveals), with no button pre-selected and a
+      brief inline notice, so the review session continues normally.
+    """
+    if scope not in _VALID_SCOPES:
+        raise HTTPException(status_code=422)
+    if scope == "subject":
+        if subject_id is None:
+            raise HTTPException(status_code=422)
+        _get_owned_subject(db, subject_id, user.id)
+
+    card = _get_owned_card(db, card_id, user.id)
+
+    try:
+        outcome = grader.grade(card.front, card.back, user_answer)
+    except WrittenAnswerGradingError:
+        return templates.TemplateResponse(
+            request,
+            "_review_card_back.html",
+            {
+                "card": card,
+                "scope": scope,
+                "subject_id": subject_id,
+                "written": True,
+                "written_notice": _WRITTEN_ANSWER_FAILURE_NOTICE,
+            },
+        )
+
+    mapped_grade = _OUTCOME_TO_GRADE[outcome.outcome]
+    return templates.TemplateResponse(
+        request,
+        "_review_card_graded.html",
+        {
+            "card": card,
+            "scope": scope,
+            "subject_id": subject_id,
+            "outcome": outcome.outcome,
+            "feedback": outcome.feedback,
+            "mapped_grade": mapped_grade,
+        },
     )

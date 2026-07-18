@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>My Subjects - Memory AI</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body>
+    <main>
+        <h1>My Subjects</h1>
+
+        {% if not subjects %}
+        <p id="subjects-empty-state">You don't have any subjects yet. Create one to get started.</p>
+        {% endif %}
+
+        <ul id="subjects-list">
+            {% for subject in subjects %}
+                {% include "_subject_row.html" %}
+            {% endfor %}
+        </ul>
+
+        {% include "_create_subject_form.html" %}
+    </main>
+</body>
+</html>

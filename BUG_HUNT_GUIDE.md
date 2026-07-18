@@ -62,8 +62,38 @@ exist yet — not a bug to file.
 ## Findings log
 
 Bugs and test gaps found this session are tracked as GitHub issues (label: `bug`) — see
-`gh issue list --label bug` for the live list rather than duplicating it here.
+`gh issue list --label bug` for the live list rather than duplicating it here. All 12 filed this
+session (#117-#128) were fixed in the same session; see PR for `worktree-bug-hunt-review`.
+
+Session summary (2026-07-18): 3 grouped review agents (Foundation/Auth/Hierarchy,
+Ingestion pipeline, Cards/Quiz/Scheduling/App) found 12 confirmed bugs/test-gaps across the
+implemented codebase. All 12 were fixed by resuming the *same* agents that found them (they
+already had the relevant file-level context loaded, so fixing was cheaper than re-deriving
+context in the orchestrator or a fresh agent) rather than the orchestrator implementing every
+fix itself. Highest-severity: a background flashcard-generation job that could get permanently
+stuck in `status="processing"` on any exception type outside the two explicitly handled ones
+(#117), and a missing guard letting a source be re-triggered while already processing, racing
+two background jobs against each other (#118) — both in `generation.py`. Full suite (336 tests)
+passes at 97% coverage after the merge with `origin/main` (which had moved to include the
+07-card-crud edit/delete feature while this review was in flight).
 
 ## Notes / gotchas learned during this review
 
-(fill in as discovered)
+- `test_login.py` deliberately bypasses the testcontainers harness and needs a real, reachable,
+  *migrated* Postgres at `DATABASE_URL` (ticket-03 decision: "FastAPI TestClient + real
+  Postgres"). Locally this means: don't rely on port 5432 being free/matching this project (a
+  developer's own native Postgres may already be listening there with unrelated credentials) --
+  spin up a throwaway `postgres:16` container on a different host port, `alembic upgrade head`
+  against it, point `DATABASE_URL` there, run the suite, then tear the container down. All other
+  tests use the `db_session`/`client` fixtures in `conftest.py`, which manage their own
+  testcontainer automatically and don't need this.
+- No `.env` file exists in any worktree checkout; required env vars for running tests directly
+  are `DATABASE_URL`, `ANTHROPIC_API_KEY`, `JWT_SECRET` (see `.env.example` for the shape; any
+  placeholder value works for `ANTHROPIC_API_KEY`/`JWT_SECRET` since tests mock the LLM boundary
+  and don't care about JWT secret strength).
+- When delegating both the *finding* and the *fixing* of bugs across a large codebase to grouped
+  subagents, resume the same agent (via SendMessage-style continuation) for the fix rather than
+  having the orchestrator or a fresh agent redo the fix -- it already has the file-level context
+  loaded from the review pass, so this is strictly cheaper. Give each agent clear file-ownership
+  boundaries (which files are "yours" vs. other agents') since they're all editing the same
+  shared worktree in parallel.

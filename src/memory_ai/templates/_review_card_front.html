@@ -1,0 +1,7 @@
+<div id="review-card">
+    <p id="review-card-{{ card.id }}-front">{{ card.front }}</p>
+    <button type="button"
+            hx-get="/review/{{ card.id }}/reveal?scope={{ scope }}{% if subject_id %}&subject_id={{ subject_id }}{% endif %}"
+            hx-target="#review-card"
+            hx-swap="outerHTML">Show answer</button>
+</div>

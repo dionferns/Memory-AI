@@ -25,6 +25,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from starlette.datastructures import UploadFile
 
@@ -475,7 +476,31 @@ async def upload_source(
         status="stored",
         created_at=datetime.now(UTC),
     )
-    db.add(source)
+
+    # Insert-then-catch, not a pre-check `SELECT`: the DB's functional
+    # unique index on `(folder_id, lower(filename))` is the source of
+    # truth (ticket 05 decision #10), matching the same pattern already
+    # locked for duplicate emails in ticket 03. Scoped in its own
+    # SAVEPOINT (`begin_nested`) rather than a bare `db.rollback()`, since
+    # `db` is itself already wrapped in an outer transaction in tests
+    # (ticket 21's harness) -- rolling back just this SAVEPOINT leaves any
+    # outer transaction untouched either way.
+    nested = db.begin_nested()
+    try:
+        db.add(source)
+        db.flush()
+    except IntegrityError:
+        nested.rollback()
+        return _render_sources_section(
+            request,
+            db,
+            folder,
+            error=f"a file named '{filename}' already exists in this folder.",
+            status_code=422,
+        )
+    else:
+        nested.commit()
+
     db.commit()
 
     return _render_sources_section(request, db, folder)

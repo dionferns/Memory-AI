@@ -35,7 +35,7 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from memory_ai.auth import current_user
@@ -71,6 +71,44 @@ _GENERIC_ERROR_MESSAGE = "Flashcard generation failed. Please try again."
 # while still rejecting the pathological max-size case before any LLM call
 # is made.
 MAX_CHUNKS_PER_SOURCE = 50
+
+# Shown on a source that was left in `processing` by a background job that
+# never got to run to completion -- distinct from `_GENERIC_ERROR_MESSAGE` so
+# the user can tell "the last attempt was interrupted" apart from "the last
+# attempt failed on its own" (issue #125).
+_INTERRUPTED_ERROR_MESSAGE = (
+    "Flashcard generation was interrupted by a server restart. Please try again."
+)
+
+
+def reconcile_interrupted_jobs(db: Session) -> int:
+    """Fail out any source stuck in ``processing`` from a prior process's run.
+
+    FastAPI's ``BackgroundTasks`` are purely in-memory: if the process exits
+    (deploy, crash, worker recycle) after ``convert_source`` commits
+    ``status="processing"`` but before ``_run_generation_job`` finishes, that
+    job is gone -- nothing will ever flip the source out of ``processing``,
+    and the existing per-job exception handling (issue #117) can't help
+    because the job never ran on this process. Call this once at application
+    startup, before any request is served, so any such leftover row is
+    deterministically flipped to ``failed`` with a clear message instead of
+    being stuck forever. Returns the number of sources reconciled.
+
+    This does not attempt to recover or resume the interrupted generation --
+    the user retries via the normal "Convert to Flashcards" button, which
+    ticket 06 decision #5/#13 already specifies as the retry path. It also
+    does not change the delete-before-generate ordering in ``convert_source``
+    (that's an explicit ticket 06 decision, not a bug) -- it only ensures a
+    source can't be silently stuck past the one moment ("startup") where we
+    can be certain no other process is still running that job.
+    """
+    result = db.execute(
+        update(Source)
+        .where(Source.status == "processing")
+        .values(status="failed", error_message=_INTERRUPTED_ERROR_MESSAGE)
+    )
+    db.commit()
+    return int(result.rowcount)  # type: ignore[attr-defined]
 
 
 def _get_owned_source(db: Session, source_id: int, user_id: int) -> Source:

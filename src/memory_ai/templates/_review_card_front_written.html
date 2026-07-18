@@ -1,0 +1,13 @@
+<div id="review-card">
+    <p id="review-card-{{ card.id }}-front">{{ card.front }}</p>
+    <form hx-post="/review/{{ card.id }}/answer"
+          hx-target="#review-card"
+          hx-swap="outerHTML"
+          hx-disabled-elt="find textarea, find button[type=submit]">
+        <textarea name="user_answer" id="review-card-{{ card.id }}-answer" required></textarea>
+        <input type="hidden" name="scope" value="{{ scope }}">
+        {% if subject_id %}<input type="hidden" name="subject_id" value="{{ subject_id }}">{% endif %}
+        <span class="htmx-indicator" id="review-card-{{ card.id }}-grading-indicator">Grading...</span>
+        <button type="submit" id="submit-answer-{{ card.id }}">Submit Answer</button>
+    </form>
+</div>

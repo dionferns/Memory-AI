@@ -26,10 +26,12 @@ from fastapi.responses import Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
+from starlette.datastructures import UploadFile
 
+from memory_ai import parsing
 from memory_ai.auth import current_user
 from memory_ai.database import get_db
-from memory_ai.models import Folder, Subject, User
+from memory_ai.models import Folder, Source, Subject, User
 
 router = APIRouter()
 
@@ -106,7 +108,7 @@ def subjects_page(
         db.execute(
             select(Subject)
             .where(Subject.user_id == user.id)
-            .options(selectinload(Subject.folders))
+            .options(selectinload(Subject.folders).selectinload(Folder.sources))
             .order_by(Subject.created_at.asc(), Subject.id.asc())
         )
         .scalars()
@@ -329,3 +331,151 @@ def delete_folder(
     db.delete(folder)
     db.commit()
     return Response(status_code=200)
+
+
+# --- POST /folders/{folder_id}/sources (upload) -----------------------------
+
+# Decision #3 (05-upload-and-parse): a fast reject based on the declared
+# ``Content-Length`` header, ahead of the real streaming-read guard below.
+# Multipart bodies carry some boilerplate (boundaries, per-part headers)
+# beyond the raw file bytes, so this threshold is deliberately generous
+# (well above `parsing.MAX_FILE_SIZE_BYTES`) to avoid rejecting a
+# legitimate near-cap-size file on overhead alone -- it only exists to
+# short-circuit *obviously* oversized uploads before spending time parsing
+# the body at all. The streaming guard below is the actual enforcement.
+_CONTENT_LENGTH_FAST_REJECT_BYTES = parsing.MAX_FILE_SIZE_BYTES + 64 * 1024
+
+_SUPPORTED_TYPES_MESSAGE = "unsupported file type (accepted types: pdf, md, txt)"
+
+
+def _size_limit_message() -> str:
+    limit_mib = parsing.MAX_FILE_SIZE_BYTES // (1024 * 1024)
+    return f"file too large (limit: {limit_mib} MiB)"
+
+
+def _list_sources(db: Session, folder_id: int) -> list[Source]:
+    return list(
+        db.execute(
+            select(Source)
+            .where(Source.folder_id == folder_id)
+            .order_by(Source.created_at.asc(), Source.id.asc())
+        )
+        .scalars()
+        .all()
+    )
+
+
+def _render_sources_section(
+    request: Request,
+    db: Session,
+    folder: Folder,
+    *,
+    error: str | None = None,
+    status_code: int = 200,
+) -> Response:
+    sources = _list_sources(db, folder.id)
+    return templates.TemplateResponse(
+        request,
+        "_folder_sources_section.html",
+        {"folder": folder, "sources": sources, "error": error},
+        status_code=status_code,
+    )
+
+
+@router.post("/folders/{folder_id}/sources")
+async def upload_source(
+    folder_id: int,
+    request: Request,
+    user: User = Depends(current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
+) -> Response:
+    """Upload a PDF/MD/TXT file into a folder owned by the current user.
+
+    Parses the upload through :mod:`memory_ai.parsing`'s pure ``(bytes,
+    file_type) -> str`` boundary and, on success, persists a ``sources`` row
+    at ``status="stored"`` -- only the extracted text is kept, the original
+    bytes are discarded once parsed. Every rejection (unsupported type,
+    oversized file, no extractable text, unreadable/corrupt file) returns a
+    422 with a case-specific message, rendered as the same HTMX-swappable
+    sources-section fragment (with an inline error) that a successful
+    upload's refreshed sources list also uses, so the fragment always swaps
+    cleanly into ``#folder-{id}-sources-section`` either way. No ``sources``
+    row is created on any rejection.
+
+    Size enforcement is two-layered per ticket 05 decision #3: a fast reject
+    on a clearly-oversized declared ``Content-Length`` (checked before the
+    body is ever parsed), then a real streaming-read guard (reading at most
+    ``MAX_FILE_SIZE_BYTES + 1`` bytes from the received upload) so a
+    spoofed or missing header can't bypass the cap.
+    """
+    folder = _get_owned_folder(db, folder_id, user.id)
+
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            declared_size = int(content_length)
+        except ValueError:
+            declared_size = None
+        if declared_size is not None and declared_size > _CONTENT_LENGTH_FAST_REJECT_BYTES:
+            return _render_sources_section(
+                request, db, folder, error=_size_limit_message(), status_code=422
+            )
+
+    form = await request.form()
+    upload = form.get("file")
+    if not isinstance(upload, UploadFile):
+        return _render_sources_section(
+            request, db, folder, error="No file was uploaded.", status_code=422
+        )
+
+    filename = upload.filename or ""
+    file_type = filename.rsplit(".", 1)[-1] if "." in filename else ""
+
+    # The real enforcement: read at most cap+1 bytes from the (already
+    # fully-received) upload stream, regardless of what `Content-Length`
+    # claimed.
+    data = await upload.read(parsing.MAX_FILE_SIZE_BYTES + 1)
+    if len(data) > parsing.MAX_FILE_SIZE_BYTES:
+        return _render_sources_section(
+            request, db, folder, error=_size_limit_message(), status_code=422
+        )
+
+    try:
+        raw_text = parsing.parse_file(data, file_type)
+    except parsing.UnsupportedFileType:
+        return _render_sources_section(
+            request, db, folder, error=_SUPPORTED_TYPES_MESSAGE, status_code=422
+        )
+    except parsing.FileTooLarge:
+        return _render_sources_section(
+            request, db, folder, error=_size_limit_message(), status_code=422
+        )
+    except parsing.UnreadableFile:
+        return _render_sources_section(
+            request,
+            db,
+            folder,
+            error="could not read this PDF -- the file may be corrupt.",
+            status_code=422,
+        )
+    except parsing.NoExtractableText:
+        return _render_sources_section(
+            request,
+            db,
+            folder,
+            error="no extractable text -- likely a scanned/image PDF.",
+            status_code=422,
+        )
+
+    source = Source(
+        folder_id=folder.id,
+        filename=filename,
+        file_type=file_type.lower(),
+        raw_text=raw_text,
+        status="stored",
+        created_at=datetime.now(UTC),
+    )
+    db.add(source)
+    db.commit()
+
+    return _render_sources_section(request, db, folder)

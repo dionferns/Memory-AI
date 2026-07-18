@@ -85,6 +85,17 @@ class Folder(Base):
 
     subject: Mapped["Subject"] = relationship(back_populates="folders")
 
+    # Same eager-load-friendly / DB-cascade-only split as `Subject.folders`
+    # above (ticket 04 decision #7 / #13): this relationship exists so the
+    # folder view can `selectinload` a folder's sources in one follow-up
+    # query, while actual deletes are handled entirely by the DB's
+    # `ON DELETE CASCADE` on `sources.folder_id`, not by the ORM.
+    sources: Mapped[list["Source"]] = relationship(
+        back_populates="folder",
+        order_by="Source.created_at, Source.id",
+        passive_deletes=True,
+    )
+
 
 class Source(Base):
     __tablename__ = "sources"
@@ -99,6 +110,8 @@ class Source(Base):
     status: Mapped[str] = mapped_column(nullable=False)
     error_message: Mapped[str | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(_TIMESTAMPTZ, nullable=False)
+
+    folder: Mapped["Folder"] = relationship(back_populates="sources")
 
 
 class Card(Base):

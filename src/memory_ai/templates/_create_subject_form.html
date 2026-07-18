@@ -1,0 +1,10 @@
+<form id="create-subject-form" hx-post="/subjects" hx-target="#create-subject-form" hx-swap="outerHTML">
+    <div id="create-subject-error" role="alert">
+        {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    </div>
+
+    <label for="subject-name">New subject name</label>
+    <input type="text" id="subject-name" name="name" value="{{ name or '' }}" required>
+
+    <button type="submit">Create subject</button>
+</form>

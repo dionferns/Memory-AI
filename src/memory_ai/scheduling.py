@@ -7,9 +7,10 @@ Every input the math depends on — the prior schedule state, the grade, and
 
 The exact formulas here are locked in ``tickets/08-sr-algorithm/decisions.md``
 and restated in ``tickets/08-sr-algorithm/PRD.md``; this module is a literal
-transcription of those formulas. The persistence helper that writes an
-``apply_sm2`` result onto a ``Card``/``Review`` ORM pair lives in a separate
-ticket (09-sr-algorithm's persistence-helper issue), not here.
+transcription of those formulas. ``apply_grade_to_card`` is the one piece
+here that touches the ORM (``Session``/``Card``/``Review``); it is a thin
+composition of the two pure functions above and does no querying and no
+commit/flush of its own -- that transaction boundary belongs to the caller.
 """
 
 from __future__ import annotations
@@ -19,6 +20,10 @@ from datetime import date, datetime, timedelta
 from math import floor
 from typing import Literal
 from zoneinfo import ZoneInfo
+
+from sqlalchemy.orm import Session
+
+from memory_ai.models import Card, Review
 
 Grade = Literal["again", "hard", "good", "easy"]
 
@@ -97,3 +102,50 @@ def today_in_tz(now_utc: datetime, tz: ZoneInfo) -> date:
     if now_utc.tzinfo is None or now_utc.tzinfo.utcoffset(now_utc) is None:
         raise ValueError("now_utc must be timezone-aware, got a naive datetime")
     return now_utc.astimezone(tz).date()
+
+
+def apply_grade_to_card(
+    session: Session,
+    card: Card,
+    grade: Grade,
+    now_utc: datetime,
+    tz: ZoneInfo,
+) -> Review:
+    """Apply a graded review to an already-loaded ``Card`` row.
+
+    Composes ``today_in_tz`` and ``apply_sm2`` (the pure functions above),
+    writes the resulting schedule state onto ``card``, and constructs (but
+    does not ``commit``/``flush``) a ``Review`` audit row describing the
+    transition.
+
+    This helper does not query for ``card`` itself -- the caller passes an
+    already-loaded row -- and it never reads a global clock; ``now_utc`` and
+    ``tz`` are supplied explicitly by the caller. Committing/flushing the
+    session is the caller's responsibility (a later ticket's HTTP route),
+    consistent with the rest of the codebase's session handling.
+    """
+    prev_interval_days = card.interval_days
+    today = today_in_tz(now_utc, tz)
+    result = apply_sm2(
+        ease_factor=card.ease_factor,
+        interval_days=card.interval_days,
+        repetitions=card.repetitions,
+        grade=grade,
+        today=today,
+    )
+
+    card.ease_factor = result.ease_factor
+    card.interval_days = result.interval_days
+    card.repetitions = result.repetitions
+    card.due_date = result.due_date
+    card.last_reviewed_at = now_utc
+
+    review = Review(
+        card_id=card.id,
+        grade=grade,
+        reviewed_at=now_utc,
+        prev_interval_days=prev_interval_days,
+        new_interval_days=result.interval_days,
+    )
+    session.add(review)
+    return review

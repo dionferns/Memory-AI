@@ -85,6 +85,7 @@ _TOOL_SCHEMA: dict[str, Any] = {
 # retyped prose that could drift apart.
 TOO_LONG_MESSAGE = "note too long for quiz generation"
 GENERATION_FAILED_MESSAGE = "quiz generation failed -- please try again."
+EMPTY_NOTE_MESSAGE = "this note has no text to quiz on yet."
 
 
 class QuizGenerationError(Exception):
@@ -240,6 +241,19 @@ def generate_quiz(
     DB (this route creates no rows at all, success or failure).
     """
     source = _get_owned_source(db, source_id, user.id)
+
+    # Guard against an empty/whitespace-only note (e.g. a source that hasn't
+    # been parsed yet, or parsed to nothing): `chunk_text("")` returns `[""]`
+    # (length 1), which would otherwise slip past the too-long check below and
+    # burn an LLM call on blank input, surfacing as an opaque 502. Fail clearly
+    # and cheaply here instead, before the LLM is ever invoked (issue #124).
+    if not source.raw_text.strip():
+        return templates.TemplateResponse(
+            request,
+            "_quiz_result.html",
+            {"source": source, "error": EMPTY_NOTE_MESSAGE},
+            status_code=422,
+        )
 
     chunks = parsing.chunk_text(source.raw_text)
     if len(chunks) > 1:

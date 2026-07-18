@@ -32,8 +32,10 @@ from memory_ai.flashcards import (
     GeneratedCard,
     get_flashcard_generator,
 )
+from memory_ai.generation import MAX_CHUNKS_PER_SOURCE
 from memory_ai.main import app
 from memory_ai.models import Card, Folder, Source, Subject, User
+from memory_ai.parsing import DEFAULT_MAX_CHARS
 
 TEST_EMAIL = "convert-retry-seam-test-user@example.com"
 TEST_PASSWORD = "correct-horse-battery-staple"
@@ -121,12 +123,13 @@ def _make_source(
     *,
     status: str = "stored",
     error_message: str | None = None,
+    raw_text: str = "Some notes.",
 ) -> Source:
     source = Source(
         folder_id=folder_id,
         filename="notes.txt",
         file_type="txt",
-        raw_text="Some notes.",
+        raw_text=raw_text,
         status=status,
         error_message=error_message,
         created_at=datetime.now(UTC),
@@ -290,6 +293,75 @@ def test_retrigger_on_failed_source_can_fail_again(
     result = _fresh_source_status(db_session, source.id)
     assert result.status == "failed"
     assert result.error_message is not None
+    assert _cards_for(db_session, source.id) == []
+
+
+def test_unexpected_generator_exception_ends_in_failed_not_stuck_processing(
+    base_client: TestClient, db_session: Session, my_folder: Folder
+) -> None:
+    """Issue #117: any exception type -- not just FlashcardValidationError/
+    FlashcardAPIError -- must still flip the source to `failed` instead of
+    leaving it stuck in `processing` forever. The background job re-raises
+    after recording the failure, so the HTTP seam (which runs the job
+    synchronously) surfaces that as a 500 -- what matters is the persisted
+    row state, not the response."""
+    source = _make_source(db_session, my_folder.id, status="stored")
+    generator = _ScriptedGenerator([RuntimeError("unexpected bug in the generator")])
+
+    with _with_generator(base_client, generator), pytest.raises(RuntimeError):
+        base_client.post(f"/sources/{source.id}/convert")
+
+    result = _fresh_source_status(db_session, source.id)
+    assert result.status == "failed"
+    assert result.error_message is not None
+    assert _cards_for(db_session, source.id) == []
+
+
+def test_retrigger_while_still_processing_is_rejected(
+    base_client: TestClient, db_session: Session, my_folder: Folder
+) -> None:
+    """Issue #118: a second convert trigger while a source is already
+    `processing` must not be allowed to schedule a concurrent job -- it
+    should be rejected outright rather than racing the first job."""
+    source = _make_source(db_session, my_folder.id, status="processing")
+
+    response = base_client.post(f"/sources/{source.id}/convert")
+
+    assert response.status_code == 409
+    # No delete-before-regenerate should have run for the rejected request.
+    result = _fresh_source_status(db_session, source.id)
+    assert result.status == "processing"
+
+
+# --- Chunk fan-out cap: oversized source fails before any LLM call -----------
+
+
+def test_source_exceeding_chunk_cap_fails_without_calling_generator(
+    base_client: TestClient, db_session: Session, my_folder: Folder
+) -> None:
+    """Issue #125: a source whose raw_text chunks into more than
+    MAX_CHUNKS_PER_SOURCE pieces must fail fast -- status="failed", generic
+    error, zero cards -- without ever invoking the generator (no unbounded
+    multi-minute fan-out of LLM calls)."""
+    # Length that guarantees strictly more than MAX_CHUNKS_PER_SOURCE chunks:
+    # chunk_text's first chunk covers DEFAULT_MAX_CHARS and each subsequent
+    # chunk advances by < DEFAULT_MAX_CHARS, so (cap + 2) * DEFAULT_MAX_CHARS
+    # chars is comfortably over the cap.
+    oversized_text = "a" * ((MAX_CHUNKS_PER_SOURCE + 2) * DEFAULT_MAX_CHARS)
+    source = _make_source(db_session, my_folder.id, status="stored", raw_text=oversized_text)
+
+    # Scripted with zero behaviors: any generate() call would trip its
+    # "called more times than scripted" assertion, proving no LLM call ran.
+    generator = _ScriptedGenerator([])
+    with _with_generator(base_client, generator):
+        response = base_client.post(f"/sources/{source.id}/convert")
+
+    assert response.status_code == 200
+    assert generator.call_count == 0
+    result = _fresh_source_status(db_session, source.id)
+    assert result.status == "failed"
+    assert result.error_message is not None
+    assert result.error_message != ""
     assert _cards_for(db_session, source.id) == []
 
 

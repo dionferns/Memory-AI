@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>My Subjects - Memory AI</title>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <!--
+      Load the quiz-navigation module once, up-front, for the whole page.
+      The "Quiz Me" response fragment (_quiz_result.html) only calls
+      MemoryAIQuiz.init(...); it must not re-inject this <script src> itself,
+      because a dynamically-inserted external script defaults to async and can
+      run *after* the inline init() call on the first click (see issue #123).
+      subjects.html is the only full page that renders the "Quiz Me" button
+      (via _subject_row -> _subject_folders_section -> _folder_row ->
+      _folder_row_inner -> _folder_sources_section), and every quiz fragment is
+      swapped into this document, so loading it here covers all of them.
+    -->
+    <script src="/static/quiz.js"></script>
 </head>
 <body>
     <main>

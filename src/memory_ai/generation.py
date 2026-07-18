@@ -60,6 +60,18 @@ templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 # #7/#8) -- neither exposes SDK/validation internals.
 _GENERIC_ERROR_MESSAGE = "Flashcard generation failed. Please try again."
 
+# Upper bound on how many chunks a single source may fan out into before we
+# refuse to run the generation job at all (issue #125). Each chunk is a
+# separate, sequential LLM call that can emit up to `flashcards.MAX_CARDS`
+# cards, so an uncapped near-cap 10 MiB upload (~106 chunks at
+# `parsing.DEFAULT_MAX_CHARS`) could spawn a multi-minute job producing
+# thousands of cards. Capping at 50 bounds one conversion to <=50 sequential
+# calls and <=50 * MAX_CARDS (5000) cards; at 100_000 chars/chunk that is
+# ~5M characters of notes -- far larger than any realistic study document,
+# while still rejecting the pathological max-size case before any LLM call
+# is made.
+MAX_CHUNKS_PER_SOURCE = 50
+
 
 def _get_owned_source(db: Session, source_id: int, user_id: int) -> Source:
     """Fetch a source scoped to ``user_id`` via a join through folder -> subject.
@@ -102,6 +114,9 @@ def convert_source(
     ``BackgroundTasks`` job, never blocking this response.
     """
     source = _get_owned_source(db, source_id, user.id)
+
+    if source.status == "processing":
+        raise HTTPException(status_code=409, detail="Flashcard generation is already in progress.")
 
     db.execute(delete(Card).where(Card.source_id == source.id))
     source.status = "processing"
@@ -146,6 +161,15 @@ def _run_generation_job(
 
         try:
             chunks = chunk_text(source.raw_text)
+            if len(chunks) > MAX_CHUNKS_PER_SOURCE:
+                # The source is too large to convert without an unbounded
+                # fan-out of LLM calls (issue #125). Fail fast -- before any
+                # generate() call -- and surface it exactly like a validation
+                # failure: status="failed", generic message, zero cards.
+                source.status = "failed"
+                source.error_message = _GENERIC_ERROR_MESSAGE
+                db.commit()
+                return
             generated: list[GeneratedCard] = []
             for chunk in chunks:
                 generated.extend(generator.generate(chunk))
@@ -154,6 +178,17 @@ def _run_generation_job(
             source.error_message = _GENERIC_ERROR_MESSAGE
             db.commit()
             return
+        except Exception:
+            # Any other unexpected failure while generating (e.g. a bug in
+            # the generator) must still flip status away from "processing" --
+            # otherwise the processing popup polls forever with no way for
+            # the user to recover short of a full re-trigger. See issue
+            # #117. No DB writes have happened yet at this point, so no
+            # rollback is needed before recording the failure.
+            source.status = "failed"
+            source.error_message = _GENERIC_ERROR_MESSAGE
+            db.commit()
+            raise
 
         now = datetime.now(UTC)
         today = now.date()
@@ -171,6 +206,21 @@ def _run_generation_job(
                     created_at=now,
                 )
             )
-        source.status = "done"
-        source.error_message = None
-        db.commit()
+        try:
+            source.status = "done"
+            source.error_message = None
+            db.commit()
+        except Exception:
+            # The insert/commit itself failed (e.g. a DB error) -- the
+            # session's transaction is now unusable, so it must be rolled
+            # back before it can record the failure. This is the one branch
+            # where a rollback is both necessary and safe: the source's own
+            # "processing" state was already durably committed by
+            # `convert_source` before this job ran, so undoing this
+            # in-flight transaction can't lose anything but the never-
+            # persisted card inserts. See issue #117.
+            db.rollback()
+            source.status = "failed"
+            source.error_message = _GENERIC_ERROR_MESSAGE
+            db.commit()
+            raise

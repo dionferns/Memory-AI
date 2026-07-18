@@ -132,6 +132,17 @@ def test_quiz_js_static_asset_is_served(authed_client: TestClient) -> None:
     assert "clampNext" in response.text
 
 
+def test_subjects_page_loads_quiz_js_once_up_front(authed_client: TestClient) -> None:
+    """The subjects page is the only full page that renders the "Quiz Me"
+    button, and every quiz fragment is swapped into it. Loading quiz.js in the
+    page <head> (rather than re-injecting it per fragment) avoids the async
+    script-load race described in issue #123."""
+    response = authed_client.get("/subjects")
+
+    assert response.status_code == 200
+    assert '<script src="/static/quiz.js"></script>' in response.text
+
+
 def test_generate_quiz_renders_first_question_with_answer_hidden_and_wires_navigation(
     authed_client: TestClient, my_source: Source
 ) -> None:
@@ -155,8 +166,12 @@ def test_generate_quiz_renders_first_question_with_answer_hidden_and_wires_navig
     assert f'id="quiz-show-answer-{my_source.id}"' in text
     assert f'id="quiz-prev-{my_source.id}"' in text
     assert f'id="quiz-next-{my_source.id}"' in text
-    # The navigation script is included and initialized for this source.
-    assert '<script src="/static/quiz.js"></script>' in text
+    # The fragment initializes navigation for this source but must NOT
+    # re-inject the external quiz.js script tag: quiz.js is loaded once in the
+    # page <head> (subjects.html), because a dynamically-inserted external
+    # script defaults to async and could run *after* this synchronous init()
+    # call on the first "Quiz Me" click (issue #123).
+    assert '<script src="/static/quiz.js"></script>' not in text
     assert f'MemoryAIQuiz.init("{my_source.id}")' in text
 
 

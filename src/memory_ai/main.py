@@ -4,6 +4,7 @@ from zoneinfo import available_timezones
 
 from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
@@ -19,6 +20,12 @@ from memory_ai.quiz import router as quiz_router
 app = FastAPI(title="Memory AI")
 app.include_router(hierarchy_router)
 app.include_router(quiz_router)
+
+# Serves src/memory_ai/static/quiz.js: the client-side Next/Previous/Show
+# Answer navigation for notes-quiz mode (ticket 12, issue #65). No other
+# static assets exist yet -- this mount exists for that one file.
+_STATIC_DIR = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 # Sane defaults applied to every new user's `user_settings` row at
 # registration (ticket 03 decision #13 / PRD user story #5).

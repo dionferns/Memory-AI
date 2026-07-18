@@ -3,13 +3,20 @@
 {% else %}
 <div id="quiz-app-{{ source.id }}" class="quiz-app" data-source-id="{{ source.id }}">
     {#
-      The complete, ordered question set from the single LLM call, embedded
-      inline (decisions.md #3) rather than persisted server-side. Issue #65
-      (client-side Next/Previous/Show Answer navigation) renders this array
-      into an interactive one-question-at-a-time view; this route (#64) is
-      only responsible for making the one LLM call and returning the full
-      set in the response.
+      The complete, ordered question set from the single LLM call (issue
+      #64), embedded inline (decisions.md #3) rather than persisted
+      server-side. Next/Previous/Show Answer below are pure client-side JS
+      (src/memory_ai/static/quiz.js) operating on this array -- no further
+      HTTP or LLM calls.
     #}
     <script type="application/json" id="quiz-data-{{ source.id }}">{{ questions | tojson }}</script>
+    <p id="quiz-progress-{{ source.id }}"></p>
+    <p id="quiz-question-{{ source.id }}"></p>
+    <p id="quiz-answer-{{ source.id }}" hidden></p>
+    <button type="button" id="quiz-show-answer-{{ source.id }}">Show Answer</button>
+    <button type="button" id="quiz-prev-{{ source.id }}">Previous</button>
+    <button type="button" id="quiz-next-{{ source.id }}">Next</button>
 </div>
+<script src="/static/quiz.js"></script>
+<script>MemoryAIQuiz.init("{{ source.id }}");</script>
 {% endif %}

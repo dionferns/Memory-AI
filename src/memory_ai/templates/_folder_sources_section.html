@@ -11,6 +11,15 @@
         <li id="source-{{ source.id }}">
             {{ source.filename }}
             {% include "_source_status.html" %}
+            <button type="button"
+                    id="quiz-me-{{ source.id }}"
+                    hx-post="/sources/{{ source.id }}/quiz"
+                    hx-target="#quiz-result-{{ source.id }}"
+                    hx-swap="innerHTML"
+                    hx-indicator="#quiz-loading-{{ source.id }}"
+                    hx-disabled-elt="this">Quiz Me</button>
+            <span id="quiz-loading-{{ source.id }}" class="htmx-indicator">Generating quiz&hellip;</span>
+            <div id="quiz-result-{{ source.id }}"></div>
         </li>
         {% endfor %}
     </ul>

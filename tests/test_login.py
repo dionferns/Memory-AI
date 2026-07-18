@@ -101,7 +101,7 @@ def test_login_via_htmx_returns_hx_redirect_header_and_sets_cookie(
     )
 
     assert response.status_code == 200
-    assert response.headers.get("hx-redirect") == "/"
+    assert response.headers.get("hx-redirect") == "/subjects"
     assert response.cookies.get("access_token") is not None
 
 

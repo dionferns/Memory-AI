@@ -13,7 +13,7 @@ day-boundary concept, not an instant.
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Text, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 # All ``datetime`` columns are timezone-aware (Postgres ``TIMESTAMPTZ``),
@@ -99,6 +99,21 @@ class Folder(Base):
 
 class Source(Base):
     __tablename__ = "sources"
+    __table_args__ = (
+        # Ticket 05 decision #10: per-folder filename uniqueness is
+        # case-insensitive and enforced at the DB level, not just in
+        # application code -- a functional unique index on
+        # `(folder_id, lower(filename))`. The upload route attempts the
+        # insert and catches the resulting `IntegrityError` (same
+        # insert-then-catch pattern already locked for duplicate emails in
+        # ticket 03), rather than pre-checking with a separate `SELECT`.
+        Index(
+            "ix_sources_folder_id_lower_filename",
+            "folder_id",
+            text("lower(filename)"),
+            unique=True,
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     folder_id: Mapped[int] = mapped_column(

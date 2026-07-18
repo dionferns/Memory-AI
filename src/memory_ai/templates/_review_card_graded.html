@@ -1,9 +1,8 @@
 <div id="review-card">
     <p id="review-card-{{ card.id }}-front">{{ card.front }}</p>
     <p id="review-card-{{ card.id }}-back">{{ card.back }}</p>
-    {% if written_notice %}
-    <p id="review-card-{{ card.id }}-written-notice">{{ written_notice }}</p>
-    {% endif %}
+    <p id="review-card-{{ card.id }}-outcome" class="outcome-{{ outcome }}">{{ outcome }}</p>
+    <p id="review-card-{{ card.id }}-feedback">{{ feedback }}</p>
     <div class="grade-buttons">
         {% for grade_value, grade_label in [("again", "Again"), ("hard", "Hard"), ("good", "Good"), ("easy", "Easy")] %}
         <form method="post" action="/review/grade/{{ card.id }}"
@@ -13,8 +12,8 @@
             <input type="hidden" name="grade" value="{{ grade_value }}">
             <input type="hidden" name="scope" value="{{ scope }}">
             {% if subject_id %}<input type="hidden" name="subject_id" value="{{ subject_id }}">{% endif %}
-            {% if written %}<input type="hidden" name="written" value="1">{% endif %}
-            <button type="submit" id="grade-{{ grade_value }}-{{ card.id }}">{{ grade_label }}</button>
+            <input type="hidden" name="written" value="1">
+            <button type="submit" id="grade-{{ grade_value }}-{{ card.id }}"{% if grade_value == mapped_grade %} class="grade-preselected" aria-pressed="true"{% endif %}>{{ grade_label }}</button>
         </form>
         {% endfor %}
     </div>

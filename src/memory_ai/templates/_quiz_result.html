@@ -1,0 +1,15 @@
+{% if error %}
+<p class="error" id="quiz-error-{{ source.id }}">{{ error }}</p>
+{% else %}
+<div id="quiz-app-{{ source.id }}" class="quiz-app" data-source-id="{{ source.id }}">
+    {#
+      The complete, ordered question set from the single LLM call, embedded
+      inline (decisions.md #3) rather than persisted server-side. Issue #65
+      (client-side Next/Previous/Show Answer navigation) renders this array
+      into an interactive one-question-at-a-time view; this route (#64) is
+      only responsible for making the one LLM call and returning the full
+      set in the response.
+    #}
+    <script type="application/json" id="quiz-data-{{ source.id }}">{{ questions | tojson }}</script>
+</div>
+{% endif %}

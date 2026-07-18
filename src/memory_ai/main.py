@@ -14,9 +14,11 @@ from memory_ai.config import get_settings
 from memory_ai.database import get_db
 from memory_ai.hierarchy import router as hierarchy_router
 from memory_ai.models import User, UserSettings
+from memory_ai.quiz import router as quiz_router
 
 app = FastAPI(title="Memory AI")
 app.include_router(hierarchy_router)
+app.include_router(quiz_router)
 
 # Sane defaults applied to every new user's `user_settings` row at
 # registration (ticket 03 decision #13 / PRD user story #5).

@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from zoneinfo import available_timezones
@@ -13,14 +15,33 @@ from sqlalchemy.orm import Session
 from memory_ai.auth import create_access_token, current_user, hash_password, verify_password
 from memory_ai.cards import router as cards_router
 from memory_ai.config import get_settings
-from memory_ai.database import get_db
+from memory_ai.database import SessionLocal, get_db
+from memory_ai.generation import reconcile_interrupted_jobs
 from memory_ai.generation import router as generation_router
 from memory_ai.hierarchy import router as hierarchy_router
 from memory_ai.models import User, UserSettings
 from memory_ai.quiz import router as quiz_router
 from memory_ai.reviews.routes import router as reviews_router
 
-app = FastAPI(title="Memory AI")
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Fail out any source left in `processing` by a previous process, once,
+    before the app starts serving requests.
+
+    ``BackgroundTasks`` jobs don't survive a process restart (issue #125) --
+    without this, a source interrupted mid-generation would be silently
+    stuck in `processing` forever after a crash/redeploy.
+    """
+    db = SessionLocal()
+    try:
+        reconcile_interrupted_jobs(db)
+    finally:
+        db.close()
+    yield
+
+
+app = FastAPI(title="Memory AI", lifespan=_lifespan)
 app.include_router(hierarchy_router)
 app.include_router(generation_router)
 app.include_router(quiz_router)

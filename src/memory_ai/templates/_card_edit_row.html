@@ -1,0 +1,20 @@
+<li id="card-{{ card.id }}">
+    <form hx-patch="/cards/{{ card.id }}"
+          hx-target="#card-{{ card.id }}"
+          hx-swap="outerHTML">
+        <div id="card-{{ card.id }}-edit-error" role="alert">
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+        </div>
+        <label for="card-{{ card.id }}-front-input">Front</label>
+        <textarea id="card-{{ card.id }}-front-input"
+                  name="front">{{ front if front is defined else card.front }}</textarea>
+        <label for="card-{{ card.id }}-back-input">Back</label>
+        <textarea id="card-{{ card.id }}-back-input"
+                  name="back">{{ back if back is defined else card.back }}</textarea>
+        <button type="submit">Save</button>
+        <button type="button"
+                hx-get="/cards/{{ card.id }}"
+                hx-target="#card-{{ card.id }}"
+                hx-swap="outerHTML">Cancel</button>
+    </form>
+</li>

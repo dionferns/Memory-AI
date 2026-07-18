@@ -1,0 +1,13 @@
+<li id="card-{{ card.id }}">
+    <span id="card-{{ card.id }}-confirm-text">Confirm delete?</span>
+    <button type="button"
+            id="card-{{ card.id }}-confirm-delete"
+            hx-delete="/cards/{{ card.id }}"
+            hx-target="#card-{{ card.id }}"
+            hx-swap="outerHTML">Confirm delete</button>
+    <button type="button"
+            id="card-{{ card.id }}-cancel-delete"
+            hx-get="/cards/{{ card.id }}"
+            hx-target="#card-{{ card.id }}"
+            hx-swap="outerHTML">Cancel</button>
+</li>

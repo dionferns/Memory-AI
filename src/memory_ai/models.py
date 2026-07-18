@@ -61,9 +61,15 @@ class Subject(Base):
     # purely to support that read pattern via `selectinload`; deletes still
     # go through a plain `DELETE` on the row with cascading handled entirely
     # by the DB's `ON DELETE CASCADE` (ticket 04 decision #13), not by any
-    # ORM-level cascade configured here.
+    # ORM-level cascade configured here. `passive_deletes=True` is required
+    # for that split to actually work: without it, the ORM's default
+    # behavior on a parent delete is to try to UPDATE any *already-loaded*
+    # child rows' FK to NULL, which both duplicates the DB's own cascade
+    # logic and fails outright here since `folders.subject_id` is NOT NULL.
     folders: Mapped[list["Folder"]] = relationship(
-        back_populates="subject", order_by="Folder.created_at, Folder.id"
+        back_populates="subject",
+        order_by="Folder.created_at, Folder.id",
+        passive_deletes=True,
     )
 
 

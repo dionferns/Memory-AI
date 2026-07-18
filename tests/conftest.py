@@ -17,7 +17,8 @@ tests on:
 import os
 import subprocess
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 
 import pytest
@@ -27,7 +28,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, SessionTransaction
 from testcontainers.postgres import PostgresContainer
 
-from memory_ai.database import get_db
+from memory_ai.database import get_db, get_session_factory
 from memory_ai.main import app
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -107,14 +108,32 @@ def db_session(db_engine: Engine) -> Iterator[Session]:
 
 @pytest.fixture
 def client(db_session: Session) -> Iterator[TestClient]:
-    """A FastAPI TestClient wired to the per-test transactional session."""
+    """A FastAPI TestClient wired to the per-test transactional session.
+
+    Also overrides ``get_session_factory`` (ticket 06+) to hand any
+    ``BackgroundTasks`` job the *same* ``db_session`` -- without closing it
+    -- so a background job's writes land on the same connection the test
+    asserts against, and the shared session survives for use after the
+    request completes. Starlette's ``TestClient`` runs ``BackgroundTasks``
+    synchronously as part of the request/response cycle, so by the time a
+    ``client.post(...)`` call returns, any job it scheduled has already run.
+    """
 
     def _override_get_db() -> Iterator[Session]:
         yield db_session
 
+    def _override_get_session_factory() -> Callable[[], AbstractContextManager[Session]]:
+        @contextmanager
+        def _factory() -> Iterator[Session]:
+            yield db_session
+
+        return _factory
+
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_session_factory] = _override_get_session_factory
     try:
         with TestClient(app) as test_client:
             yield test_client
     finally:
         app.dependency_overrides.pop(get_db, None)
+        app.dependency_overrides.pop(get_session_factory, None)

@@ -10,6 +10,7 @@
         {% for source in sources %}
         <li id="source-{{ source.id }}">
             {{ source.filename }}
+            {% include "_source_status.html" %}
             <button type="button"
                     id="quiz-me-{{ source.id }}"
                     hx-post="/sources/{{ source.id }}/quiz"

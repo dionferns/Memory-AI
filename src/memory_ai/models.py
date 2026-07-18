@@ -128,6 +128,17 @@ class Source(Base):
 
     folder: Mapped["Folder"] = relationship(back_populates="sources")
 
+    # Read-only convenience relationship for rendering a source's generated
+    # cards (ticket 06). `viewonly=True` because writes go through explicit
+    # `INSERT`/`DELETE` statements in the generation job and convert route
+    # (replace-on-retrigger, ticket 06 decision #5) rather than the ORM's
+    # own add/cascade machinery -- this relationship exists purely for the
+    # lazy-loaded read side.
+    cards: Mapped[list["Card"]] = relationship(
+        order_by="Card.created_at, Card.id",
+        viewonly=True,
+    )
+
 
 class Card(Base):
     __tablename__ = "cards"

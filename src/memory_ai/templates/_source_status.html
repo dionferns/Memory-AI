@@ -1,0 +1,27 @@
+<div id="source-{{ source.id }}-status"
+     {% if source.status == "processing" %}hx-trigger="every 2s" hx-get="/sources/{{ source.id }}/status" hx-target="this" hx-swap="outerHTML"{% endif %}>
+    {% if source.status == "stored" %}
+    <button type="button"
+            hx-post="/sources/{{ source.id }}/convert"
+            hx-target="#source-{{ source.id }}-status"
+            hx-swap="outerHTML">Convert to Flashcards</button>
+    {% elif source.status == "processing" %}
+    <p id="source-{{ source.id }}-processing">Generating flashcards&hellip;</p>
+    {% elif source.status == "done" %}
+    <ul id="source-{{ source.id }}-cards">
+        {% for card in source.cards %}
+        <li id="card-{{ card.id }}">{{ card.front }} &mdash; {{ card.back }}</li>
+        {% endfor %}
+    </ul>
+    <button type="button"
+            hx-post="/sources/{{ source.id }}/convert"
+            hx-target="#source-{{ source.id }}-status"
+            hx-swap="outerHTML">Convert to Flashcards</button>
+    {% elif source.status == "failed" %}
+    <p class="error" id="source-{{ source.id }}-error">{{ source.error_message }}</p>
+    <button type="button"
+            hx-post="/sources/{{ source.id }}/convert"
+            hx-target="#source-{{ source.id }}-status"
+            hx-swap="outerHTML">Retry</button>
+    {% endif %}
+</div>

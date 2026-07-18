@@ -1,0 +1,20 @@
+<li id="folder-{{ folder.id }}">
+    <form hx-patch="/folders/{{ folder.id }}"
+          hx-target="#folder-{{ folder.id }}"
+          hx-swap="outerHTML">
+        <div id="folder-{{ folder.id }}-edit-error" role="alert">
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+        </div>
+        <label for="folder-{{ folder.id }}-name-input">Folder name</label>
+        <input type="text"
+               id="folder-{{ folder.id }}-name-input"
+               name="name"
+               value="{{ name if name is defined else folder.name }}"
+               autofocus>
+        <button type="submit">Save</button>
+        <button type="button"
+                hx-get="/folders/{{ folder.id }}"
+                hx-target="#folder-{{ folder.id }}"
+                hx-swap="outerHTML">Cancel</button>
+    </form>
+</li>

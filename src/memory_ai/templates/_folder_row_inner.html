@@ -1,0 +1,10 @@
+<span id="folder-{{ folder.id }}-name">{{ folder.name }}</span>
+<button type="button"
+        hx-get="/folders/{{ folder.id }}/edit"
+        hx-target="#folder-{{ folder.id }}"
+        hx-swap="outerHTML">Rename</button>
+<button type="button"
+        hx-delete="/folders/{{ folder.id }}"
+        hx-target="#folder-{{ folder.id }}"
+        hx-swap="outerHTML"
+        hx-confirm="Delete this folder and everything inside it?">Delete</button>

@@ -14,7 +14,7 @@ day-boundary concept, not an instant.
 from datetime import date, datetime
 
 from sqlalchemy import Date, DateTime, ForeignKey, Index, Text
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 # All ``datetime`` columns are timezone-aware (Postgres ``TIMESTAMPTZ``),
 # storing values in UTC. ``cards.due_date`` is the one exception and uses a
@@ -56,6 +56,16 @@ class Subject(Base):
     name: Mapped[str] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(_TIMESTAMPTZ, nullable=False)
 
+    # For eager-loading a user's subjects together with their folders in a
+    # single query shape (ticket 04 decision #7) -- this relationship exists
+    # purely to support that read pattern via `selectinload`; deletes still
+    # go through a plain `DELETE` on the row with cascading handled entirely
+    # by the DB's `ON DELETE CASCADE` (ticket 04 decision #13), not by any
+    # ORM-level cascade configured here.
+    folders: Mapped[list["Folder"]] = relationship(
+        back_populates="subject", order_by="Folder.created_at, Folder.id"
+    )
+
 
 class Folder(Base):
     __tablename__ = "folders"
@@ -66,6 +76,8 @@ class Folder(Base):
     )
     name: Mapped[str] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(_TIMESTAMPTZ, nullable=False)
+
+    subject: Mapped["Subject"] = relationship(back_populates="folders")
 
 
 class Source(Base):

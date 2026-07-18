@@ -1,0 +1,13 @@
+<form id="create-folder-form-{{ subject.id }}"
+      hx-post="/subjects/{{ subject.id }}/folders"
+      hx-target="#create-folder-form-{{ subject.id }}"
+      hx-swap="outerHTML">
+    <div id="create-folder-error-{{ subject.id }}" role="alert">
+        {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    </div>
+
+    <label for="folder-name-input-{{ subject.id }}">New folder name</label>
+    <input type="text" id="folder-name-input-{{ subject.id }}" name="name" value="{{ name or '' }}" required>
+
+    <button type="submit">Create folder</button>
+</form>

@@ -1,4 +1,4 @@
-"""Card CRUD routes: view (per-source/per-folder listing) + inline edit.
+"""Card CRUD routes: view, inline edit, inline delete.
 
 - ``GET /sources/{source_id}/cards`` -- every card generated from a source,
   the primary entry point right after ticket 06's "Convert to Flashcards"
@@ -12,6 +12,12 @@
   (``ease_factor``, ``interval_days``, ``repetitions``, ``due_date``,
   ``last_reviewed_at``) is never part of the update payload or touched by
   this route.
+- ``GET /cards/{card_id}/delete-confirm`` + ``DELETE /cards/{card_id}`` --
+  inline two-step delete confirm (issue #77, no modal/native ``confirm()``),
+  again reusing the shared ``_card_row.html`` partial as the "cancel" swap
+  target. The DELETE issues nothing but a plain row delete; ``reviews`` rows
+  cascade via ticket 02's DB-level ``ON DELETE CASCADE`` FK, no app-level
+  cleanup code.
 
 Every route resolves ownership through the ``user -> subject -> folder ->
 source -> card`` join chain and returns a plain 404 (never 403) for a
@@ -236,3 +242,40 @@ def update_card(
     db.commit()
 
     return templates.TemplateResponse(request, "_card_row.html", {"card": card})
+
+
+@router.get("/cards/{card_id}/delete-confirm")
+def delete_confirm_card(
+    card_id: int,
+    request: Request,
+    user: User = Depends(current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
+) -> Response:
+    """Swap a card's display row for an inline "Confirm delete? / Cancel" pair.
+
+    No modal, no native JS `confirm()` -- an inline two-step partial swap
+    (ticket 07 decision #6/#7). "Cancel" swaps back to the display row via
+    `GET /cards/{card_id}` without ever calling the delete endpoint.
+    """
+    card = _get_owned_card(db, card_id, user.id)
+    return templates.TemplateResponse(request, "_card_delete_confirm.html", {"card": card})
+
+
+@router.delete("/cards/{card_id}")
+def delete_card(
+    card_id: int,
+    user: User = Depends(current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
+) -> Response:
+    """Delete a card owned by the current user.
+
+    Issues nothing more than a `DELETE` on the card row -- cascading removal
+    of its `reviews` rows is handled entirely by the DB's `ON DELETE CASCADE`
+    foreign key already established in ticket 02 (ticket 07 decision #8), no
+    app-level cleanup code. Returns an empty body; the client removes the row
+    itself via its own `hx-target`/`hx-swap="outerHTML"`.
+    """
+    card = _get_owned_card(db, card_id, user.id)
+    db.delete(card)
+    db.commit()
+    return Response(status_code=200)

@@ -1,6 +1,6 @@
-<li id="subject-{{ subject.id }}">
+<div id="subject-{{ subject.id }}-header">
     <form hx-patch="/subjects/{{ subject.id }}"
-          hx-target="#subject-{{ subject.id }}"
+          hx-target="#subject-{{ subject.id }}-header"
           hx-swap="outerHTML">
         <div id="subject-{{ subject.id }}-edit-error" role="alert">
             {% if error %}<p class="error">{{ error }}</p>{% endif %}
@@ -14,7 +14,7 @@
         <button type="submit">Save</button>
         <button type="button"
                 hx-get="/subjects/{{ subject.id }}"
-                hx-target="#subject-{{ subject.id }}"
+                hx-target="#subject-{{ subject.id }}-header"
                 hx-swap="outerHTML">Cancel</button>
     </form>
-</li>
+</div>

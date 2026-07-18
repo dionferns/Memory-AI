@@ -1,0 +1,9 @@
+{% if not subject.folders %}
+<p id="folders-empty-state-{{ subject.id }}">This subject has no folders yet. Create one to get started.</p>
+{% endif %}
+<ul id="folders-list-{{ subject.id }}">
+    {% for folder in subject.folders %}
+        {% include "_folder_row.html" %}
+    {% endfor %}
+</ul>
+{% include "_create_folder_form.html" %}

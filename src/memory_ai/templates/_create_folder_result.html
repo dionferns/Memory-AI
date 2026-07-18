@@ -1,0 +1,5 @@
+<li id="folder-{{ folder.id }}" hx-swap-oob="beforeend:#folders-list-{{ subject.id }}">
+    {% include "_folder_row_inner.html" %}
+</li>
+<div id="folders-empty-state-{{ subject.id }}" hx-swap-oob="true" style="display:none"></div>
+{% include "_create_folder_form.html" %}

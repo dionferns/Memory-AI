@@ -180,6 +180,38 @@ details.tree-node > summary {
     margin-top: 0.5rem;
 }
 
+/* Sidebar note rows (ticket 14 decision #2): plain links, no <li> card
+   styling -- they're leaf rows in an already-boxed tree.disclosure widget. */
+.note-link {
+    display: block;
+    padding: 0.25rem 0;
+    text-decoration: none;
+}
+
+.note-link:hover {
+    text-decoration: underline;
+}
+
+.note-link-selected {
+    color: var(--text);
+    font-weight: 600;
+}
+
+/* Right-pane rendered Markdown (ticket 14 decision #6/#7): a little
+   breathing room between block elements, otherwise inherits the page's
+   normal text styling -- no separate typographic scale. */
+.markdown-body :is(h1, h2, h3, h4, h5, h6) {
+    margin-top: 1.25rem;
+}
+
+.markdown-body pre {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+    padding: 0.75rem;
+    overflow-x: auto;
+}
+
 @media (max-width: 768px) {
     .app-layout {
         flex-direction: column;

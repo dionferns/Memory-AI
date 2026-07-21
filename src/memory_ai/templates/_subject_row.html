@@ -1,5 +1,5 @@
 <li id="subject-{{ subject.id }}"{% if oob %} hx-swap-oob="beforeend:#subjects-list"{% endif %}>
-    <details class="tree-node" id="subject-{{ subject.id }}-details">
+    <details class="tree-node" id="subject-{{ subject.id }}-details"{% if subject.id == (open_subject_id | default(none)) %} open{% endif %}>
         <summary>
             {% include "_subject_header_view.html" %}
         </summary>

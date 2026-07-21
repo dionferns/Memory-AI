@@ -1,4 +1,4 @@
-<details class="tree-node" id="folder-{{ folder.id }}-details">
+<details class="tree-node" id="folder-{{ folder.id }}-details"{% if folder.id == (open_folder_id | default(none)) %} open{% endif %}>
     <summary>
         <span id="folder-{{ folder.id }}-name">{{ folder.name }}</span>
         <button type="button"
@@ -18,13 +18,25 @@
       <details> "toggle" DOM event (which does not bubble, hence `from:` on
       the ancestor rather than this div) and fires only on the first
       occurrence, so re-collapsing/re-expanding never re-fetches.
+
+      Exception: when this folder is the one a direct/shared `/sources/{id}`
+      link (decision #3) pre-expands, its notes are already known and
+      rendered below -- the lazy hx-get is omitted entirely so the first
+      manual collapse/expand doesn't issue a redundant fetch.
     -->
     <div id="folder-{{ folder.id }}-notes-section"
          class="tree-children"
+         {% if folder.id != (open_folder_id | default(none)) %}
          hx-get="/folders/{{ folder.id }}/notes"
          hx-trigger="toggle once from:closest details"
          hx-target="this"
-         hx-swap="innerHTML">
+         hx-swap="innerHTML"
+         {% endif %}>
+        {% if folder.id == (open_folder_id | default(none)) %}
+            {% set sources = folder_notes[folder.id] %}
+            {% include "_folder_notes_list.html" %}
+        {% else %}
         <p id="folder-{{ folder.id }}-notes-loading">Notes load when expanded.</p>
+        {% endif %}
     </div>
 </details>

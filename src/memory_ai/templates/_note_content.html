@@ -1,0 +1,12 @@
+<article id="note-content-{{ source.id }}">
+    <h2 id="note-content-title-{{ source.id }}">{{ source.filename }}</h2>
+    <!--
+      Ticket 14 decision #6/#7/#8: every source's `raw_text` (PDF/TXT/MD
+      alike) is rendered through the same markdown.markdown() call
+      server-side, with no per-format branching and no raw-HTML-passthrough
+      extension enabled (the library's default mode). `| safe` is required
+      here because Jinja autoescapes by default -- without it the rendered
+      HTML tags themselves would show up as literal text.
+    -->
+    <div id="note-content-body-{{ source.id }}" class="markdown-body">{{ rendered_html | safe }}</div>
+</article>

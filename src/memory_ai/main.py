@@ -20,6 +20,7 @@ from memory_ai.generation import reconcile_interrupted_jobs
 from memory_ai.generation import router as generation_router
 from memory_ai.hierarchy import router as hierarchy_router
 from memory_ai.models import User, UserSettings
+from memory_ai.notes import router as notes_router
 from memory_ai.quiz import router as quiz_router
 from memory_ai.reviews.routes import router as reviews_router
 
@@ -47,6 +48,7 @@ app.include_router(generation_router)
 app.include_router(quiz_router)
 app.include_router(cards_router)
 app.include_router(reviews_router)
+app.include_router(notes_router)
 
 # Serves src/memory_ai/static/quiz.js: the client-side Next/Previous/Show
 # Answer navigation for notes-quiz mode (ticket 12, issue #65). No other

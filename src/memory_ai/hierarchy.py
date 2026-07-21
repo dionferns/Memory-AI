@@ -397,7 +397,7 @@ def _list_sources(db: Session, folder_id: int) -> list[Source]:
     )
 
 
-def _render_sources_section(
+def _render_notes_list(
     request: Request,
     db: Session,
     folder: Folder,
@@ -405,10 +405,20 @@ def _render_sources_section(
     error: str | None = None,
     status_code: int = 200,
 ) -> Response:
+    """Render the sidebar tree's notes-list fragment for ``folder``.
+
+    Ticket 14 decision #10: the upload form now lives in this same
+    fragment (``_folder_notes_list.html``, also used by the lazy
+    ``GET /folders/{id}/notes`` route), not the old, now-deleted
+    ``_folder_sources_section.html``. A successful or rejected upload both
+    swap back into ``#folder-{id}-notes-list-section`` -- the sidebar's
+    already-lazy-loaded notes list -- rather than reintroducing a separate
+    eager full-list fetch.
+    """
     sources = _list_sources(db, folder.id)
     return templates.TemplateResponse(
         request,
-        "_folder_sources_section.html",
+        "_folder_notes_list.html",
         {"folder": folder, "sources": sources, "error": error},
         status_code=status_code,
     )
@@ -429,10 +439,10 @@ async def upload_source(
     bytes are discarded once parsed. Every rejection (unsupported type,
     oversized file, no extractable text, unreadable/corrupt file) returns a
     422 with a case-specific message, rendered as the same HTMX-swappable
-    sources-section fragment (with an inline error) that a successful
-    upload's refreshed sources list also uses, so the fragment always swaps
-    cleanly into ``#folder-{id}-sources-section`` either way. No ``sources``
-    row is created on any rejection.
+    sidebar notes-list fragment (with an inline error) that a successful
+    upload's refreshed notes list also uses (ticket 14 decision #10), so the
+    fragment always swaps cleanly into ``#folder-{id}-notes-list-section``
+    either way. No ``sources`` row is created on any rejection.
 
     Size enforcement is two-layered per ticket 05 decision #3: a fast reject
     on a clearly-oversized declared ``Content-Length`` (checked before the
@@ -449,14 +459,14 @@ async def upload_source(
         except ValueError:
             declared_size = None
         if declared_size is not None and declared_size > _CONTENT_LENGTH_FAST_REJECT_BYTES:
-            return _render_sources_section(
+            return _render_notes_list(
                 request, db, folder, error=_size_limit_message(), status_code=422
             )
 
     form = await request.form()
     upload = form.get("file")
     if not isinstance(upload, UploadFile):
-        return _render_sources_section(
+        return _render_notes_list(
             request, db, folder, error="No file was uploaded.", status_code=422
         )
 
@@ -468,22 +478,18 @@ async def upload_source(
     # claimed.
     data = await upload.read(parsing.MAX_FILE_SIZE_BYTES + 1)
     if len(data) > parsing.MAX_FILE_SIZE_BYTES:
-        return _render_sources_section(
-            request, db, folder, error=_size_limit_message(), status_code=422
-        )
+        return _render_notes_list(request, db, folder, error=_size_limit_message(), status_code=422)
 
     try:
         raw_text = parsing.parse_file(data, file_type)
     except parsing.UnsupportedFileType:
-        return _render_sources_section(
+        return _render_notes_list(
             request, db, folder, error=_SUPPORTED_TYPES_MESSAGE, status_code=422
         )
     except parsing.FileTooLarge:
-        return _render_sources_section(
-            request, db, folder, error=_size_limit_message(), status_code=422
-        )
+        return _render_notes_list(request, db, folder, error=_size_limit_message(), status_code=422)
     except parsing.UnreadableFile:
-        return _render_sources_section(
+        return _render_notes_list(
             request,
             db,
             folder,
@@ -491,7 +497,7 @@ async def upload_source(
             status_code=422,
         )
     except parsing.NoExtractableText:
-        return _render_sources_section(
+        return _render_notes_list(
             request,
             db,
             folder,
@@ -522,7 +528,7 @@ async def upload_source(
         db.flush()
     except IntegrityError:
         nested.rollback()
-        return _render_sources_section(
+        return _render_notes_list(
             request,
             db,
             folder,
@@ -534,4 +540,4 @@ async def upload_source(
 
     db.commit()
 
-    return _render_sources_section(request, db, folder)
+    return _render_notes_list(request, db, folder)

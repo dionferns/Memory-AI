@@ -1,5 +1,33 @@
 <article id="note-content-{{ source.id }}">
     <h2 id="note-content-title-{{ source.id }}">{{ source.filename }}</h2>
+
+    <!--
+      Ticket 14 decision #9: the per-note actions that used to live inline in
+      _folder_sources_section.html (Convert to Flashcards, Quiz Me, View
+      Cards) now render here, scoped to whichever note is currently
+      selected. None of their underlying routes/logic change -- only where
+      they're rendered from. Because #content-pane's whole innerHTML is
+      replaced on every note switch (see _folder_notes_list.html's
+      hx-swap="innerHTML" on the note links), switching notes can never leak
+      stale ids/state from a previously selected note: the old note's entire
+      subtree, actions included, is discarded, not patched in place.
+    -->
+    <div id="note-actions-{{ source.id }}">
+        {% include "_source_status.html" %}
+
+        <button type="button"
+                id="quiz-me-{{ source.id }}"
+                hx-post="/sources/{{ source.id }}/quiz"
+                hx-target="#quiz-result-{{ source.id }}"
+                hx-swap="innerHTML"
+                hx-indicator="#quiz-loading-{{ source.id }}"
+                hx-disabled-elt="this">Quiz Me</button>
+        <span id="quiz-loading-{{ source.id }}" class="htmx-indicator">Generating quiz&hellip;</span>
+        <div id="quiz-result-{{ source.id }}"></div>
+
+        <a id="view-cards-{{ source.id }}" href="/sources/{{ source.id }}/cards">View Cards</a>
+    </div>
+
     <!--
       Ticket 14 decision #6/#7/#8: every source's `raw_text` (PDF/TXT/MD
       alike) is rendered through the same markdown.markdown() call

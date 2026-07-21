@@ -108,20 +108,20 @@ def _clear_generator_override() -> Iterator[None]:
     app.dependency_overrides.pop(get_quiz_generator, None)
 
 
-def test_quiz_me_button_appears_on_the_folder_view_for_every_source(
+def test_folder_row_fragment_no_longer_inlines_quiz_me_button(
     authed_client: TestClient, my_folder: Folder, my_source: Source
 ) -> None:
-    """The folder view is the current main-editor surface for sources (no
-    dedicated per-note detail page exists yet -- see quiz.py's module
-    docstring). The "Quiz Me" trigger must appear there for every source,
-    with no dependency on any flashcard-generation state (this app has no
-    such state wired up yet either, so this is trivially satisfied -- the
-    button is unconditional)."""
+    """As of ticket 14, `GET /folders/{id}` (the folder-row rename-cancel
+    fragment) no longer inlines its sources/quiz-me markup -- notes are
+    lazy-loaded into the sidebar tree via `GET /folders/{id}/notes` instead
+    (see test_sidebar_tree.py), and "Quiz Me" itself relocates into the new
+    note-content right pane in a later slice of that same ticket. This
+    supersedes the pre-ticket-14 assumption (see git history) that the
+    folder view was the one place "Quiz Me" rendered."""
     response = authed_client.get(f"/folders/{my_folder.id}")
 
     assert response.status_code == 200
-    assert f'id="quiz-me-{my_source.id}"' in response.text
-    assert f'hx-post="/sources/{my_source.id}/quiz"' in response.text
+    assert f'id="quiz-me-{my_source.id}"' not in response.text
 
 
 def test_quiz_js_static_asset_is_served(authed_client: TestClient) -> None:

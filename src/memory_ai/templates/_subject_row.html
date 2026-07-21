@@ -1,6 +1,10 @@
 <li id="subject-{{ subject.id }}"{% if oob %} hx-swap-oob="beforeend:#subjects-list"{% endif %}>
-    {% include "_subject_header_view.html" %}
-    <div id="subject-{{ subject.id }}-folders-section">
-        {% include "_subject_folders_section.html" %}
-    </div>
+    <details class="tree-node" id="subject-{{ subject.id }}-details">
+        <summary>
+            {% include "_subject_header_view.html" %}
+        </summary>
+        <div id="subject-{{ subject.id }}-folders-section" class="tree-children">
+            {% include "_subject_folders_section.html" %}
+        </div>
+    </details>
 </li>

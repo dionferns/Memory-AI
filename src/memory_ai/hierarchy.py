@@ -98,18 +98,23 @@ def subjects_page(
     user: User = Depends(current_user),  # noqa: B008
     db: Session = Depends(get_db),  # noqa: B008
 ) -> Response:
-    """Render the full ``/subjects`` hierarchy page for the current user.
+    """Render the full ``/subjects`` sidebar-tree + right-pane shell for the
+    current user (ticket 14).
 
     Subjects are loaded together with their folders via ``selectinload``:
     one query for the user's subjects, one follow-up query for all their
     folders in a single ``IN (...)`` -- not one query per subject (ticket 04
-    decision #7).
+    decision #7). Unlike before ticket 14, folders' *sources* are no longer
+    eager-loaded here -- a folder's notes are lazily fetched via
+    ``GET /folders/{folder_id}/notes`` only once that folder is expanded in
+    the sidebar tree (ticket 14 decision #1), since a folder's note count can
+    grow large in a way a user's subject/folder count generally doesn't.
     """
     subjects = (
         db.execute(
             select(Subject)
             .where(Subject.user_id == user.id)
-            .options(selectinload(Subject.folders).selectinload(Folder.sources))
+            .options(selectinload(Subject.folders))
             .order_by(Subject.created_at.asc(), Subject.id.asc())
         )
         .scalars()
@@ -332,6 +337,32 @@ def delete_folder(
     db.delete(folder)
     db.commit()
     return Response(status_code=200)
+
+
+@router.get("/folders/{folder_id}/notes")
+def list_folder_notes(
+    folder_id: int,
+    request: Request,
+    user: User = Depends(current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
+) -> Response:
+    """Lazily return a folder's notes for the sidebar tree (ticket 14 decision #1/#5).
+
+    Fetched only once, the first time a folder is expanded in the sidebar
+    (see ``_folder_row_inner.html``'s ``hx-trigger="toggle once ..."``).
+    Returns just each note's name and id -- no content, no per-note actions
+    (Convert to Flashcards / Quiz Me / View Cards), which stay scoped to the
+    note-content route added in a later slice of this ticket. Ownership is
+    scoped via the same join-to-owning-subject 404-not-403 pattern as every
+    other folder-scoped route in this module (ticket 04/07 convention).
+    """
+    folder = _get_owned_folder(db, folder_id, user.id)
+    sources = _list_sources(db, folder.id)
+    return templates.TemplateResponse(
+        request,
+        "_folder_notes_list.html",
+        {"folder": folder, "sources": sources},
+    )
 
 
 # --- POST /folders/{folder_id}/sources (upload) -----------------------------

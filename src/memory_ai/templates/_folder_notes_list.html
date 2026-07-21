@@ -4,7 +4,20 @@
 <ul id="notes-list-{{ folder.id }}">
     {% for source in sources %}
     <li id="note-{{ source.id }}">
-        <span id="note-{{ source.id }}-name">{{ source.filename }}</span>
+        <!--
+          Ticket 14 decision #2/#3: `href` gives a real, no-JS-required
+          fallback link to the full `/sources/{id}` page (also what a
+          right-click "open in new tab" / share-URL resolves to); `hx-get` +
+          `hx-push-url` layer the no-full-reload swap on top for a normal
+          click, matching this app's existing HTMX architecture.
+        -->
+        <a id="note-{{ source.id }}-link"
+           class="note-link{% if source.id == (selected_source_id | default(none)) %} note-link-selected{% endif %}"
+           href="/sources/{{ source.id }}"
+           hx-get="/sources/{{ source.id }}/content"
+           hx-target="#content-pane"
+           hx-swap="innerHTML"
+           hx-push-url="/sources/{{ source.id }}">{{ source.filename }}</a>
     </li>
     {% endfor %}
 </ul>

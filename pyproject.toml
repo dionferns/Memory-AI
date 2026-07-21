@@ -17,6 +17,7 @@ dependencies = [
     "pydantic-settings>=2.6",
     "anthropic>=0.40",
     "pypdf>=5.1",
+    "markdown>=3.10.2",
 ]
 
 [dependency-groups]
@@ -29,6 +30,7 @@ dev = [
     "testcontainers[postgres]>=4.9",
     "httpx>=0.27",
     "types-passlib>=1.7",
+    "types-markdown>=3.10.2.20260712",
 ]
 
 [build-system]

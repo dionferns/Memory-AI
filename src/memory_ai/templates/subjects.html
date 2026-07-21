@@ -51,7 +51,11 @@
         </nav>
 
         <main class="content-pane" id="content-pane">
-            {% include "_right_pane_placeholder.html" %}
+            {% if selected_source is defined and selected_source %}
+                {% include "_note_content.html" %}
+            {% else %}
+                {% include "_right_pane_placeholder.html" %}
+            {% endif %}
         </main>
     </div>
 </body>

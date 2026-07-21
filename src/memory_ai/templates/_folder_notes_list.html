@@ -1,23 +1,48 @@
-{% if not sources %}
-<p id="notes-empty-state-{{ folder.id }}">No notes yet.</p>
-{% endif %}
-<ul id="notes-list-{{ folder.id }}">
-    {% for source in sources %}
-    <li id="note-{{ source.id }}">
-        <!--
-          Ticket 14 decision #2/#3: `href` gives a real, no-JS-required
-          fallback link to the full `/sources/{id}` page (also what a
-          right-click "open in new tab" / share-URL resolves to); `hx-get` +
-          `hx-push-url` layer the no-full-reload swap on top for a normal
-          click, matching this app's existing HTMX architecture.
-        -->
-        <a id="note-{{ source.id }}-link"
-           class="note-link{% if source.id == (selected_source_id | default(none)) %} note-link-selected{% endif %}"
-           href="/sources/{{ source.id }}"
-           hx-get="/sources/{{ source.id }}/content"
-           hx-target="#content-pane"
-           hx-swap="innerHTML"
-           hx-push-url="/sources/{{ source.id }}">{{ source.filename }}</a>
-    </li>
-    {% endfor %}
-</ul>
+<div id="folder-{{ folder.id }}-notes-list-section">
+    <div id="folder-{{ folder.id }}-upload-error" role="alert">
+        {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    </div>
+
+    {% if not sources %}
+    <p id="notes-empty-state-{{ folder.id }}">No notes yet.</p>
+    {% endif %}
+    <ul id="notes-list-{{ folder.id }}">
+        {% for source in sources %}
+        <li id="note-{{ source.id }}">
+            <!--
+              Ticket 14 decision #2/#3: `href` gives a real, no-JS-required
+              fallback link to the full `/sources/{id}` page (also what a
+              right-click "open in new tab" / share-URL resolves to); `hx-get` +
+              `hx-push-url` layer the no-full-reload swap on top for a normal
+              click, matching this app's existing HTMX architecture.
+            -->
+            <a id="note-{{ source.id }}-link"
+               class="note-link{% if source.id == (selected_source_id | default(none)) %} note-link-selected{% endif %}"
+               href="/sources/{{ source.id }}"
+               hx-get="/sources/{{ source.id }}/content"
+               hx-target="#content-pane"
+               hx-swap="innerHTML"
+               hx-push-url="/sources/{{ source.id }}">{{ source.filename }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <!--
+      Ticket 14 decision #10: upload-a-note relocates here, into the sidebar
+      tree at the folder level, from the old _folder_sources_section.html
+      (retired this slice). The underlying route/validation
+      (POST /folders/{id}/sources, ticket 05) is unchanged -- only where the
+      form renders from and what it swaps back into (this same notes-list
+      fragment, appending the new note into the already-lazy-loaded list
+      rather than reintroducing an eager full-list fetch).
+    -->
+    <form id="upload-form-{{ folder.id }}"
+          hx-post="/folders/{{ folder.id }}/sources"
+          hx-target="#folder-{{ folder.id }}-notes-list-section"
+          hx-swap="outerHTML"
+          hx-encoding="multipart/form-data">
+        <label for="upload-file-input-{{ folder.id }}">Upload a note (PDF, MD, or TXT)</label>
+        <input type="file" id="upload-file-input-{{ folder.id }}" name="file" required>
+        <button type="submit">Upload</button>
+    </form>
+</div>

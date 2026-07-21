@@ -130,9 +130,12 @@ def test_upload_valid_markdown_creates_stored_source_row(
     assert source.status == "stored"
 
 
-def test_upload_success_swaps_in_updated_sources_list(
+def test_upload_success_swaps_in_updated_notes_list(
     authed_client: TestClient, my_folder: Folder
 ) -> None:
+    """Ticket 14: the upload form now lives in, and swaps back into, the
+    sidebar tree's notes-list fragment (``_folder_notes_list.html``) rather
+    than the old, now-deleted ``_folder_sources_section.html``."""
     response = authed_client.post(
         f"/folders/{my_folder.id}/sources",
         files={"file": ("notes.txt", b"content", "text/plain")},
@@ -142,7 +145,8 @@ def test_upload_success_swaps_in_updated_sources_list(
     assert response.status_code == 200
     text = response.text
     assert "notes.txt" in text
-    assert f'id="sources-list-{my_folder.id}"' in text
+    assert f'id="folder-{my_folder.id}-notes-list-section"' in text
+    assert f'id="notes-list-{my_folder.id}"' in text
     # No error fragment on a successful upload.
     assert '<p class="error">' not in text
 

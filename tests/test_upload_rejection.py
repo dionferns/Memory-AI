@@ -105,7 +105,7 @@ def test_unsupported_extension_renders_inline_htmx_error_fragment(
     )
 
     assert response.status_code == 422
-    assert f'id="folder-{my_folder.id}-sources-section"' in response.text
+    assert f'id="folder-{my_folder.id}-notes-list-section"' in response.text
     assert '<p class="error">' in response.text
 
 

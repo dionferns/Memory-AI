@@ -12,28 +12,47 @@
       MemoryAIQuiz.init(...); it must not re-inject this <script src> itself,
       because a dynamically-inserted external script defaults to async and can
       run *after* the inline init() call on the first click (see issue #123).
-      subjects.html is the only full page that renders the "Quiz Me" button
-      (via _subject_row -> _subject_folders_section -> _folder_row ->
-      _folder_row_inner -> _folder_sources_section), and every quiz fragment is
-      swapped into this document, so loading it here covers all of them.
+      subjects.html is this app's one full page hosting the sidebar tree +
+      note content pane (ticket 14), and every quiz fragment is swapped into
+      this document, so loading it here still covers all of them.
     -->
     <script src="/static/quiz.js"></script>
 </head>
 <body>
-    <main>
-        <h1>My Subjects</h1>
+    <div class="app-layout" id="app-layout">
+        <!--
+          Ticket 14 decision #13: below a ~768px viewport the sidebar
+          collapses behind this toggle rather than staying an
+          always-visible column. No JS framework/router involved -- a
+          single inline class toggle on the layout wrapper, styled entirely
+          by styles.css's `.sidebar-open` media-query rule (matching this
+          app's existing minimal-JS approach, e.g. quiz.js).
+        -->
+        <button type="button"
+                id="sidebar-toggle"
+                aria-controls="sidebar"
+                aria-label="Toggle subjects sidebar"
+                onclick="document.getElementById('app-layout').classList.toggle('sidebar-open')">&#9776; Subjects</button>
 
-        {% if not subjects %}
-        <p id="subjects-empty-state">You don't have any subjects yet. Create one to get started.</p>
-        {% endif %}
+        <nav class="sidebar" id="sidebar" aria-label="Subjects, folders, and notes">
+            <h1>My Subjects</h1>
 
-        <ul id="subjects-list">
-            {% for subject in subjects %}
-                {% include "_subject_row.html" %}
-            {% endfor %}
-        </ul>
+            {% if not subjects %}
+            <p id="subjects-empty-state">You don't have any subjects yet. Create one to get started.</p>
+            {% endif %}
 
-        {% include "_create_subject_form.html" %}
-    </main>
+            <ul id="subjects-list">
+                {% for subject in subjects %}
+                    {% include "_subject_row.html" %}
+                {% endfor %}
+            </ul>
+
+            {% include "_create_subject_form.html" %}
+        </nav>
+
+        <main class="content-pane" id="content-pane">
+            {% include "_right_pane_placeholder.html" %}
+        </main>
+    </div>
 </body>
 </html>

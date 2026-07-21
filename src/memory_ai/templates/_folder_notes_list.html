@@ -1,0 +1,10 @@
+{% if not sources %}
+<p id="notes-empty-state-{{ folder.id }}">No notes yet.</p>
+{% endif %}
+<ul id="notes-list-{{ folder.id }}">
+    {% for source in sources %}
+    <li id="note-{{ source.id }}">
+        <span id="note-{{ source.id }}-name">{{ source.filename }}</span>
+    </li>
+    {% endfor %}
+</ul>

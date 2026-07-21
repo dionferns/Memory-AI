@@ -125,3 +125,78 @@ button[hx-delete] {
 .success {
     color: var(--accent-primary);
 }
+
+/*
+ * Ticket 14: two-pane sidebar navigation shell (`/subjects` and
+ * `/sources/{id}`). Fixed-width sidebar + flex-grow right pane, per
+ * decisions.md #11 -- plain CSS custom properties, no framework. Below a
+ * ~768px viewport the sidebar collapses behind a toggle button rather than
+ * staying an always-visible column (decisions.md #13).
+ */
+.app-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+    max-width: 72rem;
+    margin: 0 auto;
+}
+
+.sidebar {
+    flex: 0 0 20rem;
+    max-width: 20rem;
+}
+
+/* Overrides the generic `main { max-width: 48rem; margin: 0 auto; }` rule
+   above -- the right pane should fill whatever space the sidebar leaves,
+   not be re-centered/re-capped at the old single-column page width. */
+.app-layout > .content-pane {
+    max-width: none;
+    margin: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#sidebar-toggle {
+    display: none;
+}
+
+/* Sidebar tree nodes (subjects/folders): collapsed-by-default disclosure
+   widgets, expanding on click with no client-side JS. */
+details.tree-node {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    margin-block: 0.5rem;
+}
+
+details.tree-node > summary {
+    cursor: pointer;
+    font-weight: 600;
+    list-style-position: outside;
+}
+
+.tree-children {
+    margin-top: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .app-layout {
+        flex-direction: column;
+    }
+
+    #sidebar-toggle {
+        display: inline-block;
+    }
+
+    .sidebar {
+        display: none;
+        flex-basis: auto;
+        max-width: none;
+        width: 100%;
+    }
+
+    .app-layout.sidebar-open .sidebar {
+        display: block;
+    }
+}
